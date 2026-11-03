@@ -1,8 +1,10 @@
 # Iron and Whispers — project notes
 
-The game is **displayed** as "Iron and Whispers". Every identifier is still
-`ironandwhisper` — the repo, the BGA project, the PHP namespace, the remote directory —
-and should stay that way. Only `gameinfos.jsonc`'s `game_name` carries the plural.
+The game is **displayed** as "Iron and Whispers", and every identifier is `ironandwhispers`
+— the repo, the BGA project, the PHP namespace (`IronAndWhispers`), the remote directory.
+They were all singular until 2026-11-02, when BGA required the project name to match the
+game's before private alpha, after which it cannot change. The local checkout folder and old
+notes may still say `ironandwhisper`. `tests/test_bga_checks.php` fails if the names disagree.
 
 Asymmetric two-player board game for Board Game Arena. Empire moves visible troops;
 Insurgency seeds hidden cards. **`rules.html` is the player's manual and `design.md` is the
@@ -166,20 +168,28 @@ and carry their own value. A bluff is a card worth 0.
 
 ## Current state
 
-**Private alpha requested 2026-10-22**, and BGA's confirmation email asked for nothing; now
-waiting. BGA's checklist says to ping after two weeks of silence (about 2026-11-05). Every
-item on the pre-release checklist that applies is done — dry run and committed build clean,
-Chrome, Firefox and Safari, minified files, dark mode, real time, spectator and replay, box
-art in the Metadata Manager, zombie level 2. The request itself raised two warnings that were
-deliberately ignored: no game BGG id (unpublished), and the project folder `ironandwhisper`
-not matching `ironandwhispers` from the display name — the request carried a note offering to
-move to a correctly named project before release rather than migrating every identifier now. Path to Release in `design.md` has the detail. The rules have
-moved a long way since the first port; several sessions of real play have driven that.
+**In private alpha, from the `ironandwhispers` project (reported 2026-11-03).** The first request,
+on 2026-10-22, came from the old `ironandwhisper` project. BGA's answer: "The naming must
+be fixed before going to private alpha, after that we can't change it. Please migrate to the
+correct name and request alpha from there." The project name is now locked. Studio's Game infos
+tab shows `display_name` as the raw project name on both projects; the forum says the real name
+arrives through translation, showing `<gamename>_displayed` for about a day. Check that it did.
+The missing game BGG id warning was deliberately ignored (unpublished). Path to Release in
+`design.md` has the detail. The rules have moved a long way since the first port; several sessions
+of real play have driven that.
+
+**BGA's alpha review reported a popup going white-on-white in dark mode** (issue #21), and sent UX/UI
+guidelines (v1.0.0, 2025-10-10), which are the basis for validating alpha to beta and on to release.
+The PDF is kept locally at `misc/bga-ux-guidelines.pdf`, untracked because this repo is public and
+it is BGA's document. Issue #22 tracks its ten-point checklist against the client; issue #23 holds
+the larger refresh, whose items are proposals, each needing its own yes. Nothing has been changed
+for either yet. `tools/pdf-extract.swift` pulls text and page images from a PDF with macOS PDFKit,
+since `pdftotext` and `pdftoppm` are not installed.
 
 **The rebel side is called "Rebels" to the player** (2026-09-23), in every display string in
 the client and the PHP, and in `rules.html`. `Insurgency` survives as the *identifier*
 everywhere — `Side = 'insurgency'`, the database, `first_player`, the state class — on the
-same precedent as the repo still being `ironandwhisper` and the cards still being
+same precedent as the cards still being
 `influence0`. The manual calls the side the **Rebel Conspiracy**; **sedition** is the word
 for what it does, and *resistance* is the word to avoid. See *Vocabulary* in `design.md`,
 which records why: neither side is meant to be sympathetic.
@@ -189,7 +199,7 @@ two legend entries about what those are and what they do. Three words for one th
 failure the Vocabulary decision exists to prevent.
 
 Done:
-- BGA Studio project `ironandwhisper`, deploying cleanly over SFTP with a client build.
+- BGA Studio project `ironandwhispers`, deploying cleanly over SFTP with a client build.
 - Full rules simulator, bots, 185 tests, an exploration notebook, and a batch runner.
 - **The PHP port**: `dbmodel.sql`, `Scenario`, `Rules`, `Bots`, `Board`, `View`, `Game`,
   and the game states. See *How the port is put together* below.
@@ -364,9 +374,9 @@ Done:
   from the file. `tests/test_icons.php` lints both halves. The town and city icons are hard to
   tell apart at letter size; that is the real art, not a bug.
 - **`rules.html` is the player's manual** (2026-09-20, issue #6), published at
-  https://scotfree.github.io/ironandwhisper/rules.html by GitHub Pages from `main`'s root
+  https://scotfree.github.io/ironandwhispers/rules.html by GitHub Pages from `main`'s root
   (2026-10-22) — every push to `main` updates it. `misc/gamehelp.wiki` is the condensed
-  version for BGA's `Gamehelpironandwhisper` wiki page, and links there, split out of the old
+  version for BGA's `Gamehelpironandwhispers` wiki page, and links there, split out of the old
   `ironandwhisper.md` along with `design.md`. One file was the rules *and* the design
   rationale, and the player-facing half could not carry sentences like "an earlier version
   measured 99.7% Empire wins". Four sections: the idea, a board part-way through a game,
@@ -580,14 +590,14 @@ is rate-limiting, not a mechanism — but it would accelerate board-shrinking, w
 games around turn 8 of 20, so measure game length and not just win rate.
 
 **Deferred work lives in GitHub Issues**, not in this file:
-https://github.com/scotfree/ironandwhisper/issues, labelled `design`, `balance`, `ui`,
+https://github.com/scotfree/ironandwhispers/issues, labelled `design`, `balance`, `ui`,
 `bots`, `playtest`, `deferred`. This document and `design.md` record decisions and
 the reasoning behind them; the tracker holds what has not been done. An issue here carries
 the *why* — why it is parked, what it would cost, what it interacts with — in the same
 voice as the design doc, because that is what makes it worth reading a month later.
 
 **The Studio lobby shows the project name, and that is correct** (issue #16, closed
-2026-09-13). Studio lists games by folder name — `ironandwhisper` — and `game_name` does not
+2026-09-13). Studio lists games by folder name — `ironandwhispers` — and `game_name` does not
 drive that list. BGA staff on the question: *"When a game is first released to Alpha, the
 name will appear as `<gamename>_displayed` for the first 24 hours or so, but after that
 point it will be updated by the translation system"*
@@ -617,7 +627,7 @@ Ours has never been audited against that warning — see issue #15.
 and `NextTurn` — leaving them there means duplicate state ids.
 
 `./tools/deploy.sh` runs `npm run build` first, because `src/` is excluded from the upload
-and what actually ships is the compiled `modules/js/Game.js` and `ironandwhisper.css`.
+and what actually ships is the compiled `modules/js/Game.js` and `ironandwhispers.css`.
 
 **The deploy syncs the working tree, not git** — an untracked file in the root or `img/` goes
 to BGA. Box art, a `.xcf` and the title image went up that way on 2026-10-22 and had to be
@@ -628,17 +638,21 @@ own `_ide_helper.php` and `bga-framework.d.ts`, and `.original` copies the Studi
 testing minified files, which a pruning deploy would remove.
 
 - Host `1.studio.boardgamearena.com`, port **2022**, user `scotfree`, remote dir
-  `/ironandwhisper`.
-- **Password lives in the macOS Keychain**, service `bga-studio-sftp`, account `scotfree`.
-  Never in a file. `tools/deploy.py` reads it via `security find-generic-password`.
+  `/ironandwhispers`.
+- **Login is by SSH key**, `~/.ssh/bga_studio_ed25519`, named by `ssh_key` in
+  `tools/deploy.json`. The public half is uploaded in the
+  [Studio control panel](https://studio.boardgamearena.com/controlpanel).
 - Config and exclude list: `tools/deploy.json`. Only the game files and the shared JSON
   reach BGA — `sim/`, `tests/`, `notebooks/`, `tools/`, `misc/`, `src/` and `*.md` are excluded.
 - First run creates `tools/.venv` (paramiko) automatically.
 
-Password auth was chosen over an SSH key deliberately, for now. Uploading a key to the
-Studio control panel permanently disables password auth on the account — worth doing
-eventually, since it would let the deploy script drop Python and paramiko entirely for
-about fifteen lines of shell around `sftp -b`.
+**The key replaced password login on 2026-11-02**, because the password stopped working some
+time after 2026-10-22. A BGA email mentions passwords deactivated after a security breach;
+that is the suspected cause, unconfirmed, and the email did not appear to include this account.
+Uploading a key permanently disables password auth on the account, so there is no going back.
+The key has no passphrase, because it is used only for this account and the deploy runs
+unattended. A key would also let the deploy script drop Python and
+paramiko for about fifteen lines of shell around `sftp -b`; that has not been done.
 
 ---
 
@@ -656,7 +670,7 @@ This skeleton differs from zoomquest in ways that will bite:
 | transition strings | state classes returned by class name |
 
 Specifics:
-- Namespace is `Bga\Games\IronAndWhisper`; `Game extends \Bga\GameFramework\Table`.
+- Namespace is `Bga\Games\IronAndWhispers`; `Game extends \Bga\GameFramework\Table`.
 - State classes live in `modules/php/States/`, extend `GameState`, declare `id:` and
   `type:` via constructor named arguments, mark handlers `#[PossibleAction]`, and
   **return the next state's class** (`return NextTurn::class;`).
@@ -666,7 +680,7 @@ Specifics:
 - `bga-framework.d.ts` (58KB) ships in the repo — real type definitions for the client
   API, which is otherwise thinly documented. The main practical argument for TypeScript.
 - `src/` holds the client source; `npm run build` compiles TS → `modules/js/Game.js` and
-  SCSS → `ironandwhisper.css`. **Never edit those two by hand** — `tools/deploy.sh` rebuilds
+  SCSS → `ironandwhispers.css`. **Never edit those two by hand** — `tools/deploy.sh` rebuilds
   them before every sync, so edits there are silently overwritten.
 - `misc/` is BGA's designated non-deployed directory.
 

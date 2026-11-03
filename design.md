@@ -353,10 +353,14 @@ authoritative answer belongs to them and this is only the expected shape.
     2026-10-11 — the resolution card waited for a click nobody in a replay makes, and is now
     skipped there; "replay from here" showed NaN% in BGA's own progress bar, which nothing
     of ours draws and `getGameProgression` cannot produce, so it is left alone); ~~minified
-    JS/CSS; Chrome, Firefox, Safari; dark mode; real-time mode~~ (done 2026-10-22 — dark
-    mode barely changes anything, since the board sets its own backgrounds; real time now
+    JS/CSS; Chrome, Firefox, Safari; real-time mode~~ (done 2026-10-22 — real time now
     gives 90/120/150s per top-up, at each turn and again after resolving). Edge untested:
     it shares Chrome's engine.
+  - **Dark mode is not done** (issue #21). Marked done on 2026-10-22 because it "barely changes
+    anything, since the board sets its own backgrounds". That holds for the board, not the
+    overlays: BGA's alpha review reported a popup going white-on-white.
+  - **BGA's UX guidelines** (issues #22 and #23) are the basis for validating alpha to beta and
+    beta to release.
   - ~~**3D game box image**~~ — uploaded through the Metadata Manager 2026-10-22, which is
     where BGA keeps it now; nothing goes in the repo. The checklist wants the space around
     the box transparent, not white.
@@ -369,11 +373,12 @@ authoritative answer belongs to them and this is only the expected shape.
   ~~publisher BGG id~~ — set to 4, BGG's "(Self-Published)", as the warning itself says to;
   **game BGG id** unset — ignored, since there is no BGG entry before publication; **project
   name** — BGA expects `ironandwhispers` from the display name "Iron and Whispers", and the
-  project is `ironandwhisper`. Ignored for private alpha with a note in the request offering to
-  move to a correctly named project before release, rather than migrating the namespace and
-  every identifier now. **[ask BGA]** whether that move is needed.
-- ~~**Request PRIVATE alpha once**~~ — requested 2026-10-22; the confirmation email asked for
-  nothing. Ping after two weeks of silence.
+  project was `ironandwhisper`. Ignored at first, with a note in the request offering to move
+  before release. BGA declined: the name must be fixed before private alpha and cannot change
+  after it. *Migrated to a new `ironandwhispers` project 2026-11-02.*
+- ~~**Request PRIVATE alpha again, from `ironandwhispers`**~~ — through to private alpha, reported
+  2026-11-03. The 2026-10-22 request came from the old project, and BGA asked for a new one from
+  the correctly named project.
   Originally: **Request PRIVATE alpha once** from the game management page after a successful build — the
   "Request PRIVATE ALPHA status" button the
   [walkthrough](https://en.doc.boardgamearena.com/Create_a_game_in_BGA_Studio:_Complete_Walkthrough)
