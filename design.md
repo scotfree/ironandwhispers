@@ -417,7 +417,8 @@ of the license **[ask BGA]**.
   that stop at private alpha, so it is probably not enough. A **print-on-demand storefront**
   (The Game Crafter, MakePlayingCards and the like), where anyone can order a copy, fits the
   wording far better — and it needs the same files a print-and-play would: the board, three
-  card images, tokens, `rules.html` printed. An older
+  card images, tokens, `rules.html` printed. *Generated 2026-11-05* for The Game Crafter by `misc/print/build.py`;
+  not yet uploaded (issue #24). An older
   [forum thread](https://forum.boardgamearena.com/viewtopic.php?t=12409) says self-published
   and crowdfunded games can qualify if the design is final, so the two sources disagree.
   **[ask BGA]**

@@ -186,8 +186,22 @@ the larger refresh, whose items are proposals, each needing its own yes. Nothing
 for either yet. `tools/pdf-extract.swift` pulls text and page images from a PDF with macOS PDFKit,
 since `pdftotext` and `pdftoppm` are not installed.
 
+**The physical game is generated for The Game Crafter** (2026-11-05, issue #24), by
+`misc/print/build.py` into the gitignored `misc/print/out/`: a poker deck, a **20 x 20" Large
+Quad-Fold** board, a Large Stout box, the rules as Letter pages, and the shop images. Each piece
+is HTML/SVG filled from `maps/`, `scenarios/` and `data/cards.json`, rendered at the template's
+exact pixel size by headless Chrome, so a parameter change reaches the print files on the next
+run. The rules are `rules.html` itself through its own print stylesheet, with only the paper
+size overridden. **The 18" quad-fold was tried and dropped**: two poker-card piles per location
+leave 0.48" for a name. The board folds on both centre lines; the horizontal fold falls between
+rows two and three, the vertical one in the gap between the middle column's two card spaces.
+`misc/print/check.py` lays a file over The Game Crafter's template. Nothing has been uploaded.
+The manual is written to work on paper as well as on screen: no "click this" and spelled-out
+addresses.
+
 **The rebel side is called "Rebels" to the player** (2026-09-23), in every display string in
-the client and the PHP, and in `rules.html`. `Insurgency` survives as the *identifier*
+the client and the PHP, and in `rules.html`. The manual's rules section still says
+"Insurgency" in 14 places (issue #26). `Insurgency` survives as the *identifier*
 everywhere — `Side = 'insurgency'`, the database, `first_player`, the state class — on the
 same precedent as the cards still being
 `influence0`. The manual calls the side the **Rebel Conspiracy**; **sedition** is the word
@@ -703,6 +717,8 @@ sim/                   Python rules engine, bots, tests, human play interface
 tests/                 PHP tests, and a stub of the BGA framework to run them against
 notebooks/             exploration.ipynb + build_notebook.py that generates it
 tools/                 deploy script and config
+misc/print/            The Game Crafter print files: build.py renders them, check.py
+                       checks them against the template; output in misc/print/out/
 modules/php/           BGA game logic
 modules/js/Game.js     compiled client — build output, do not edit
 src/ts, src/scss       client source
