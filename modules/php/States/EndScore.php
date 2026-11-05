@@ -2,7 +2,7 @@
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * IronAndWhisper implementation : © Scot Free Kennedy
+ * IronAndWhispers implementation : © Scot Free Kennedy
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -11,11 +11,11 @@
 
 declare(strict_types=1);
 
-namespace Bga\Games\IronAndWhisper\States;
+namespace Bga\Games\IronAndWhispers\States;
 
 use Bga\GameFramework\GameResult\GameResult;
 use Bga\GameFramework\StateType;
-use Bga\Games\IronAndWhisper\Game;
+use Bga\Games\IronAndWhispers\Game;
 
 const ST_END_GAME = 99;
 
@@ -51,7 +51,7 @@ class EndScore extends \Bga\GameFramework\States\GameState
             if (!$this->game->isBot($playerId)) {
                 $side = $this->game->sideForPlayer($playerId);
                 $this->bga->playerScoreAux->set($playerId,
-                    \Bga\Games\IronAndWhisper\Rules::tiebreakAux($this->game->tiebreakFor($side)));
+                    \Bga\Games\IronAndWhispers\Rules::tiebreakAux($this->game->tiebreakFor($side)));
             }
         }
 

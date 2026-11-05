@@ -10,11 +10,11 @@
  */
 declare(strict_types=1);
 
-use Bga\Games\IronAndWhisper\Bots;
-use Bga\Games\IronAndWhisper\Game;
-use Bga\Games\IronAndWhisper\Rules;
-use Bga\Games\IronAndWhisper\Scenario;
-use Bga\Games\IronAndWhisper\States\EndScore;
+use Bga\Games\IronAndWhispers\Bots;
+use Bga\Games\IronAndWhispers\Game;
+use Bga\Games\IronAndWhispers\Rules;
+use Bga\Games\IronAndWhispers\Scenario;
+use Bga\Games\IronAndWhispers\States\EndScore;
 
 // -- what the Empire bot is allowed to think --------------------------------
 
@@ -101,7 +101,7 @@ function test_the_bot_takes_its_turn_before_the_human_is_asked(): void
     $next = enterNextTurn($game);
 
     assertSame(
-        \Bga\Games\IronAndWhisper\States\Resolve::class,
+        \Bga\Games\IronAndWhispers\States\Resolve::class,
         $next,
         'the human is asked to resolve first — it garrisons towns it could close',
     );

@@ -8,7 +8,7 @@ PROJECT_DIR="$(cd "$TOOLS_DIR/.." && pwd)"
 VENV="$TOOLS_DIR/.venv"
 
 # The client is compiled: src/ is excluded from the upload and modules/js/Game.js
-# plus ironandwhisper.css are what actually ship. Building here is what stops
+# plus ironandwhispers.css are what actually ship. Building here is what stops
 # stale compiled output reaching the Studio.
 BUILD=1
 ARGS=()

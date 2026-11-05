@@ -2,9 +2,8 @@
   "host": "1.studio.boardgamearena.com",
   "port": 2022,
   "user": "scotfree",
-  "remote_dir": "ironandwhisper",
-  "keychain_service": "bga-studio-sftp",
-  "keychain_account": "scotfree",
+  "remote_dir": "ironandwhispers",
+  "ssh_key": "~/.ssh/bga_studio_ed25519",
   "exclude": [
     ".git",
     ".venv",

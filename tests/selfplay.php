@@ -24,9 +24,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/support/bootstrap.php';
 
-use Bga\Games\IronAndWhisper\Game;
-use Bga\Games\IronAndWhisper\Rules;
-use Bga\Games\IronAndWhisper\States\EndScore;
+use Bga\Games\IronAndWhispers\Game;
+use Bga\Games\IronAndWhispers\Rules;
+use Bga\Games\IronAndWhispers\States\EndScore;
 
 $games = (int) ($argv[1] ?? 100);
 $botName = (string) ($argv[2] ?? 'glob');

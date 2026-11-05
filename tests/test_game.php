@@ -11,13 +11,13 @@ declare(strict_types=1);
 use Bga\GameFramework\GameResult\GameResult;
 
 use Bga\GameFramework\UserException;
-use Bga\Games\IronAndWhisper\Game;
-use Bga\Games\IronAndWhisper\Rules;
-use Bga\Games\IronAndWhisper\States\EmpireTurn;
-use Bga\Games\IronAndWhisper\States\EndScore;
-use Bga\Games\IronAndWhisper\States\InsurgencyTurn;
-use Bga\Games\IronAndWhisper\States\NextTurn;
-use Bga\Games\IronAndWhisper\States\Resolve;
+use Bga\Games\IronAndWhispers\Game;
+use Bga\Games\IronAndWhispers\Rules;
+use Bga\Games\IronAndWhispers\States\EmpireTurn;
+use Bga\Games\IronAndWhispers\States\EndScore;
+use Bga\Games\IronAndWhispers\States\InsurgencyTurn;
+use Bga\Games\IronAndWhispers\States\NextTurn;
+use Bga\Games\IronAndWhispers\States\Resolve;
 
 /** What the scenario says Everlan starts with. Derived, not written down. */
 function startingGarrison(Game $game, string $townId = 'everlan'): int

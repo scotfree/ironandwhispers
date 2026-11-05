@@ -1,7 +1,7 @@
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * IronAndWhisper implementation : © Scot Free Kennedy
+ * IronAndWhispers implementation : © Scot Free Kennedy
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -23,7 +23,7 @@ import { presenceHtml } from "./presence";
  * what it was given.
  */
 export class Game {
-    public bga: Bga<IronAndWhisperPlayer, IronAndWhisperGamedatas>;
+    public bga: Bga<IronAndWhispersPlayer, IronAndWhispersGamedatas>;
     public board: BoardView;
 
     /** The side the person looking at the screen is playing. Null for spectators. */
@@ -67,10 +67,10 @@ export class Game {
      */
     private lastTurn: LastTurn | null = null;
 
-    private gamedatas: IronAndWhisperGamedatas;
+    private gamedatas: IronAndWhispersGamedatas;
     private handClickHandler: (cardId: number) => void = () => {};
 
-    constructor(bga: Bga<IronAndWhisperPlayer, IronAndWhisperGamedatas>) {
+    constructor(bga: Bga<IronAndWhispersPlayer, IronAndWhispersGamedatas>) {
         this.bga = bga;
 
         this.bga.states.register('Resolve', new Resolve(this, bga));
@@ -78,7 +78,7 @@ export class Game {
         this.bga.states.register('EmpireTurn', new EmpireTurn(this, bga));
     }
 
-    setup(gamedatas: IronAndWhisperGamedatas) {
+    setup(gamedatas: IronAndWhispersGamedatas) {
         this.gamedatas = gamedatas;
         // The server says who you are. Working it back from a player id is how
         // the hand ended up invisible: one lookup miss and the Insurgency was

@@ -11,10 +11,10 @@
  */
 declare(strict_types=1);
 
-use Bga\Games\IronAndWhisper\Game;
-use Bga\Games\IronAndWhisper\Rules;
-use Bga\Games\IronAndWhisper\Stats;
-use Bga\Games\IronAndWhisper\States\EndScore;
+use Bga\Games\IronAndWhispers\Game;
+use Bga\Games\IronAndWhispers\Rules;
+use Bga\Games\IronAndWhispers\Stats;
+use Bga\Games\IronAndWhispers\States\EndScore;
 
 function statsDefinitions(): array
 {

@@ -79,7 +79,7 @@ const out = `<?php
  */
 declare(strict_types=1);
 
-namespace Bga\\Games\\IronAndWhisper;
+namespace Bga\\Games\\IronAndWhispers;
 
 /**
  * The shared JSON, decoded, keyed by its path from the project root.

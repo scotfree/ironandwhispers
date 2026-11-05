@@ -10,8 +10,8 @@
  */
 declare(strict_types=1);
 require __DIR__ . '/support/bootstrap.php';
-use Bga\Games\IronAndWhisper\{Game, Rules};
-use Bga\Games\IronAndWhisper\States\{EndScore, Resolve, InsurgencyTurn, EmpireTurn};
+use Bga\Games\IronAndWhispers\{Game, Rules};
+use Bga\Games\IronAndWhispers\States\{EndScore, Resolve, InsurgencyTurn, EmpireTurn};
 $runs = 0; $errors = []; $rounds = [];
 foreach ([[0,0],[1,0],[0,1],[1,1]] as [$lv, $hold]) {
     for ($seed = 1; $seed <= 30; $seed++) {

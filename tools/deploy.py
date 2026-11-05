@@ -4,10 +4,9 @@
 Only uploads files whose size or modification time differs from the copy on the
 server, so a routine deploy after editing one file transfers one file.
 
-The SFTP password is read from the macOS Keychain, never from a file. Store it
-once with:
-
-    security add-generic-password -a <user> -s bga-studio-sftp -w '<password>' -U
+Logs in with the SSH key named by "ssh_key" in deploy.json, whose public half is
+uploaded at https://studio.boardgamearena.com/controlpanel. BGA disables password
+login for an account once it has a key.
 
 Usage:
     ./tools/deploy.sh                 # sync changed files
@@ -21,7 +20,6 @@ import fnmatch
 import json
 import os
 import stat
-import subprocess
 import sys
 import time
 
@@ -41,21 +39,17 @@ def load_config():
         return json.load(f)
 
 
-def get_password(cfg):
-    """Read the SFTP password out of the macOS Keychain."""
+def load_key(cfg):
+    """Read the SSH private key that deploy.json names."""
+    path = os.path.expanduser(cfg["ssh_key"])
     try:
-        return subprocess.check_output(
-            ["security", "find-generic-password",
-             "-a", cfg["keychain_account"],
-             "-s", cfg["keychain_service"], "-w"],
-            stderr=subprocess.DEVNULL,
-        ).decode().strip()
-    except subprocess.CalledProcessError:
+        return paramiko.Ed25519Key.from_private_key_file(path)
+    except FileNotFoundError:
         sys.exit(
-            f"No Keychain entry for service '{cfg['keychain_service']}' "
-            f"account '{cfg['keychain_account']}'. Add one with:\n\n"
-            f"  security add-generic-password -a {cfg['keychain_account']} "
-            f"-s {cfg['keychain_service']} -w '<password>' -U\n"
+            f"No SSH key at {path}. Create one with:\n\n"
+            f"  ssh-keygen -t ed25519 -f {cfg['ssh_key']}\n\n"
+            f"and upload the .pub file at "
+            f"https://studio.boardgamearena.com/controlpanel\n"
         )
 
 
@@ -172,7 +166,7 @@ def sync(sftp, cfg, dry_run, delete):
 
 def connect(cfg):
     transport = paramiko.Transport((cfg["host"], cfg["port"]))
-    transport.connect(username=cfg["user"], password=get_password(cfg))
+    transport.connect(username=cfg["user"], pkey=load_key(cfg))
     return transport, paramiko.SFTPClient.from_transport(transport)
 
 

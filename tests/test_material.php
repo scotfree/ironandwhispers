@@ -9,7 +9,7 @@
  */
 declare(strict_types=1);
 
-use Bga\Games\IronAndWhisper\Material;
+use Bga\Games\IronAndWhispers\Material;
 
 function test_material_is_exactly_the_json_it_was_built_from(): void
 {

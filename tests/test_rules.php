@@ -8,8 +8,8 @@
  */
 declare(strict_types=1);
 
-use Bga\Games\IronAndWhisper\IllegalMove;
-use Bga\Games\IronAndWhisper\Rules;
+use Bga\Games\IronAndWhispers\IllegalMove;
+use Bga\Games\IronAndWhispers\Rules;
 
 const STRENGTH = 3;
 

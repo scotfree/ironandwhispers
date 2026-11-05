@@ -2,7 +2,7 @@
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * IronAndWhisper implementation : © Scot Free Kennedy
+ * IronAndWhispers implementation : © Scot Free Kennedy
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -19,14 +19,14 @@
  */
 declare(strict_types=1);
 
-namespace Bga\Games\IronAndWhisper\States;
+namespace Bga\Games\IronAndWhispers\States;
 
 use Bga\GameFramework\Actions\Types\JsonParam;
 use Bga\GameFramework\StateType;
 use Bga\GameFramework\States\GameState;
 use Bga\GameFramework\States\PossibleAction;
-use Bga\Games\IronAndWhisper\Game;
-use Bga\Games\IronAndWhisper\Rules;
+use Bga\Games\IronAndWhispers\Game;
+use Bga\Games\IronAndWhispers\Rules;
 
 class InsurgencyTurn extends GameState
 {

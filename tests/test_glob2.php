@@ -16,8 +16,8 @@
  */
 declare(strict_types=1);
 
-use Bga\Games\IronAndWhisper\Bots;
-use Bga\Games\IronAndWhisper\Scenario;
+use Bga\Games\IronAndWhispers\Bots;
+use Bga\Games\IronAndWhispers\Scenario;
 
 /** @return string[] the towns this plan marches into, sorted */
 function glob2Destinations(array $plan): array
@@ -110,10 +110,10 @@ function test_glob2_never_leaves_a_network_it_cannot_feed(): void
     foreach ($plan['produce'] as $townId => $count) {
         $towns[$townId]['troops'] += $count;
     }
-    foreach (\Bga\Games\IronAndWhisper\Rules::components($towns) as $component) {
+    foreach (\Bga\Games\IronAndWhispers\Rules::components($towns) as $component) {
         assertTrue(
-            \Bga\Games\IronAndWhisper\Rules::troopsIn($towns, $component)
-                <= \Bga\Games\IronAndWhisper\Rules::ceiling($towns, $component, $scenario->supplyPerTroop),
+            \Bga\Games\IronAndWhispers\Rules::troopsIn($towns, $component)
+                <= \Bga\Games\IronAndWhispers\Rules::ceiling($towns, $component, $scenario->supplyPerTroop),
             'left ' . implode(',', $component) . ' over its ceiling',
         );
     }

@@ -1,6 +1,6 @@
 '''Iron and Whispers''' is a game of occupation and sedition for two players. One player is the '''Empire''', marching troops in the open. The other is the '''Rebels''', placing agents face down. Both build up '''presence''' in a location, and when the location resolves, the side with more presence takes it.
 
-The full illustrated manual is at [https://scotfree.github.io/ironandwhisper/rules.html scotfree.github.io/ironandwhisper/rules.html], and opens from '''How to play''' in the game's side column. The '''?''' in the title bar opens a legend of every mark on the board.
+The full illustrated manual is at [https://scotfree.github.io/ironandwhispers/rules.html scotfree.github.io/ironandwhispers/rules.html], and opens from '''How to play''' in the game's side column. The '''?''' in the title bar opens a legend of every mark on the board.
 
 == The idea ==
 

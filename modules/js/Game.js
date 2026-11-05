@@ -1,7 +1,7 @@
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * IronAndWhisper implementation : © Scot Free Kennedy
+ * IronAndWhispers implementation : © Scot Free Kennedy
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -10,7 +10,7 @@
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * IronAndWhisper implementation : © Scot Free Kennedy
+ * IronAndWhispers implementation : © Scot Free Kennedy
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -37,7 +37,7 @@ function presenceHtml(value, extraClass = '', title = '') {
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * IronAndWhisper implementation : © Scot Free Kennedy
+ * IronAndWhispers implementation : © Scot Free Kennedy
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -910,7 +910,7 @@ class BoardView {
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * IronAndWhisper implementation : © Scot Free Kennedy
+ * IronAndWhispers implementation : © Scot Free Kennedy
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -1701,7 +1701,7 @@ class Resolve {
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * IronAndWhisper implementation : © Scot Free Kennedy
+ * IronAndWhispers implementation : © Scot Free Kennedy
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -2157,7 +2157,7 @@ class Help {
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * IronAndWhisper implementation : © Scot Free Kennedy
+ * IronAndWhispers implementation : © Scot Free Kennedy
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.

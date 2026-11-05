@@ -14,8 +14,8 @@ so an Empire player's copy has the rebels' cards as ids until they turn over.
 Nearly every card does turn over by the end — a look, a resolution or the final
 sweep — which is why sim/replay.py can still rebuild the whole game.
 
-**Authentication is your browser session**, kept in the macOS Keychain the way
-tools/deploy.py keeps the SFTP password — never in a file:
+**Authentication is your browser session**, kept in the macOS Keychain — never in
+a file:
 
     security add-generic-password -U -s bga-studio-session -a scotfree -w
 

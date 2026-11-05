@@ -1,7 +1,7 @@
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * IronAndWhisper implementation : © Scot Free Kennedy
+ * IronAndWhispers implementation : © Scot Free Kennedy
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -83,7 +83,7 @@ interface ScenarioView {
     turns: number;
 }
 
-interface IronAndWhisperPlayer extends Player {
+interface IronAndWhispersPlayer extends Player {
     side: Side;
 }
 
@@ -95,7 +95,7 @@ interface BotView {
     score: number;
 }
 
-interface IronAndWhisperGamedatas extends Gamedatas<IronAndWhisperPlayer> {
+interface IronAndWhispersGamedatas extends Gamedatas<IronAndWhispersPlayer> {
     bot: BotView | null;
     /** The side of whoever this payload was built for. Null for a spectator. */
     you: Side | null;

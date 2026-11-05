@@ -2,7 +2,7 @@
 /**
  *------
  * BGA framework: Gregory Isabelli & Emmanuel Colin & BoardGameArena
- * IronAndWhisper implementation : © Scot Free Kennedy
+ * IronAndWhispers implementation : © Scot Free Kennedy
  *
  * This code has been produced on the BGA studio platform for use on http://boardgamearena.com.
  * See http://en.boardgamearena.com/#!doc/Studio for more information.
@@ -21,14 +21,14 @@
  */
 declare(strict_types=1);
 
-namespace Bga\Games\IronAndWhisper\States;
+namespace Bga\Games\IronAndWhispers\States;
 
 use Bga\GameFramework\Actions\Types\JsonParam;
 use Bga\GameFramework\StateType;
 use Bga\GameFramework\States\GameState;
 use Bga\GameFramework\States\PossibleAction;
-use Bga\Games\IronAndWhisper\Game;
-use Bga\Games\IronAndWhisper\Rules;
+use Bga\Games\IronAndWhispers\Game;
+use Bga\Games\IronAndWhispers\Rules;
 
 class EmpireTurn extends GameState
 {
@@ -91,7 +91,7 @@ class EmpireTurn extends GameState
      * @param array<string, array> $towns
      * @return array<string, int>
      */
-    private static function productionOffer(array $towns, \Bga\Games\IronAndWhisper\Scenario $scenario): array
+    private static function productionOffer(array $towns, \Bga\Games\IronAndWhispers\Scenario $scenario): array
     {
         $offer = [];
 
@@ -109,7 +109,7 @@ class EmpireTurn extends GameState
      * @param array<string, array> $towns
      * @return array<int, array{towns: string[], ceiling: int, troops: int}>
      */
-    private static function networkView(array $towns, \Bga\Games\IronAndWhisper\Scenario $scenario): array
+    private static function networkView(array $towns, \Bga\Games\IronAndWhispers\Scenario $scenario): array
     {
         return array_map(
             fn(array $component) => [

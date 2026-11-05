@@ -24,12 +24,12 @@ require_once $root . '/modules/php/States/InsurgencyTurn.php';
 require_once $root . '/modules/php/States/EmpireTurn.php';
 
 use Bga\GameFramework\Db;
-use Bga\Games\IronAndWhisper\Game;
-use Bga\Games\IronAndWhisper\Rules;
-use Bga\Games\IronAndWhisper\States\EmpireTurn;
-use Bga\Games\IronAndWhisper\States\InsurgencyTurn;
-use Bga\Games\IronAndWhisper\States\NextTurn;
-use Bga\Games\IronAndWhisper\States\Resolve;
+use Bga\Games\IronAndWhispers\Game;
+use Bga\Games\IronAndWhispers\Rules;
+use Bga\Games\IronAndWhispers\States\EmpireTurn;
+use Bga\Games\IronAndWhispers\States\InsurgencyTurn;
+use Bga\Games\IronAndWhispers\States\NextTurn;
+use Bga\Games\IronAndWhispers\States\Resolve;
 
 const P_ONE = 2345001;
 const P_TWO = 2345002;

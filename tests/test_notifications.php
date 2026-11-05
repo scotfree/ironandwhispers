@@ -20,7 +20,7 @@
  */
 declare(strict_types=1);
 
-use Bga\Games\IronAndWhisper\Game;
+use Bga\Games\IronAndWhispers\Game;
 
 /** Notification names the PHP sends, from every `notify->all`/`notify->player`. */
 function serverNotifications(): array
@@ -122,7 +122,7 @@ function test_every_notification_that_scores_for_the_bot_moves_its_panel(): void
         for ($seed = 1; $seed <= 6; $seed++) {
             $game = newSoloGame($sides, seed: $seed, botOption: Game::BOT_GLOB);
             for ($guard = 0; $guard < 200; $guard++) {
-                if (enterNextTurn($game) === Bga\Games\IronAndWhisper\States\EndScore::class) {
+                if (enterNextTurn($game) === Bga\Games\IronAndWhispers\States\EndScore::class) {
                     break;
                 }
                 $game->playBotTurn($game->toMove());

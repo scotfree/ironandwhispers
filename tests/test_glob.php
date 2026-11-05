@@ -13,9 +13,9 @@
  */
 declare(strict_types=1);
 
-use Bga\Games\IronAndWhisper\Bots;
-use Bga\Games\IronAndWhisper\Rules;
-use Bga\Games\IronAndWhisper\Scenario;
+use Bga\Games\IronAndWhispers\Bots;
+use Bga\Games\IronAndWhispers\Rules;
+use Bga\Games\IronAndWhispers\Scenario;
 
 /**
  * A board on the scenario's real map, with every town empty and unresolved.

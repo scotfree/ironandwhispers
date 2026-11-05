@@ -34,7 +34,7 @@ function test_no_stylesheet_imports_anything(): void
     // Studio scans, and the manual, which ships beside it.
     $root = dirname(__DIR__);
     $found = [];
-    foreach (['ironandwhisper.css', 'rules.html'] as $name) {
+    foreach (['ironandwhispers.css', 'rules.html'] as $name) {
         foreach (file("{$root}/{$name}") as $number => $line) {
             if (str_contains($line, '@import')) {
                 $found[] = "{$name}:" . ($number + 1);
@@ -42,6 +42,24 @@ function test_no_stylesheet_imports_anything(): void
         }
     }
     assertSame([], $found);
+}
+
+function test_every_name_for_the_project_agrees(): void
+{
+    // BGA wants the project named exactly after the game, finds Game.php by a
+    // namespace built from the project name, and loads <project>.css. A mismatch
+    // fails only on the Studio, or at the alpha request.
+    $root = dirname(__DIR__);
+    $project = json_decode(file_get_contents("{$root}/tools/deploy.json"), true)['remote_dir'];
+
+    preg_match('/"game_name":\s*"([^"]+)"/', file_get_contents("{$root}/gameinfos.jsonc"), $name);
+    assertSame($project, strtolower(str_replace(' ', '', $name[1])));
+
+    preg_match('/^namespace Bga\\\\Games\\\\(\w+);/m', file_get_contents("{$root}/modules/php/Game.php"), $namespace);
+    assertSame($project, strtolower($namespace[1]));
+
+    assertTrue(file_exists("{$root}/{$project}.css"), "no {$project}.css");
+    assertSame($project, json_decode(file_get_contents("{$root}/package.json"), true)['name']);
 }
 
 function test_every_bundled_font_carries_its_licence(): void

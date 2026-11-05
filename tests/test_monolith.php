@@ -11,8 +11,8 @@
  */
 declare(strict_types=1);
 
-use Bga\Games\IronAndWhisper\Bots;
-use Bga\Games\IronAndWhisper\Scenario;
+use Bga\Games\IronAndWhispers\Bots;
+use Bga\Games\IronAndWhispers\Scenario;
 
 /** An empty board from the scenario's map, as the bots see one. */
 function monolithBoard(Scenario $scenario): array

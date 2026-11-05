@@ -12,8 +12,8 @@
  */
 declare(strict_types=1);
 
-use Bga\Games\IronAndWhisper\Bots;
-use Bga\Games\IronAndWhisper\Scenario;
+use Bga\Games\IronAndWhispers\Bots;
+use Bga\Games\IronAndWhispers\Scenario;
 
 function test_mist2_leads_the_richer_garrison_even_though_it_is_better_defended(): void
 {
