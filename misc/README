@@ -15,3 +15,6 @@ In this project (it *is* in our git repository; the note above is about BGA's):
                 game from (cards, board, box, rules, shop images) into
                 print/out/, which is gitignored. Reads iaw_square.png for the box.
   iaw_square.png the box art, 1254px square.
+  iaw_*.png/jpg the art as uploaded to BGA's Metadata Manager: banner 1386x400,
+                box 280x280, icon 50x50, title 2000x2000. iaw_box and iaw_title
+                are copies of art/ironandwhispers3_box_small.png and art/title.png.
