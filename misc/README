@@ -11,3 +11,7 @@ In this project (it *is* in our git repository; the note above is about BGA's):
                 uploaded through BGA's Metadata Manager, never deployed.
   img-drafts/   SVG drafts that never made it into img/.
   gamehelp.wiki the condensed rules for BGA's Gamehelpironandwhispers wiki page.
+  print/        build.py renders the files The Game Crafter prints the physical
+                game from (cards, board, box, rules, shop images) into
+                print/out/, which is gitignored. Reads iaw_square.png for the box.
+  iaw_square.png the box art, 1254px square.
