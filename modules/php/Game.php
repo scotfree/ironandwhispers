@@ -650,7 +650,13 @@ class Game extends \Bga\GameFramework\Table
      * call. A person's resolution has already been taken in the Resolve state
      * and this is reached with $resolve null.
      *
+     * `$produceCi` and `$produceShock` are full rules only (option 105, issue
+     * #6): the build popup's other two buttons. No bot ever fills them in —
+     * every bot's turn leaves them empty, which is exactly the base game.
+     *
      * @param array<int, array{from: string, to: string, count: int}> $moves
+     * @param array<string, int> $produceCi    town id => Counterinsurgency Units to build
+     * @param array<string, int> $produceShock town id => Shock Troops to build
      */
     public function applyEmpireTurn(
         array $produce,
@@ -659,6 +665,8 @@ class Game extends \Bga\GameFramework\Table
         array $disband,
         int $actorId,
         bool $chooseLosses = false,
+        array $produceCi = [],
+        array $produceShock = [],
     ): void {
         // Resolution happens first (Decision 4): no marching in and cashing
         // out on arrival. What you commit has to survive a reply. A person has
@@ -671,19 +679,35 @@ class Game extends \Bga\GameFramework\Table
         $towns = $this->board->towns();
         $moves = $this->normalizeMoves($moves);
         $produce = array_map('intval', $produce);
+        $produceCi = array_map('intval', $produceCi);
+        $produceShock = array_map('intval', $produceShock);
 
         // Troop changes accumulate here and are written once, so a troop that
         // is raised and then marched in the same turn costs one update.
         $delta = [];
 
+        // Capacity is one number shared by all three types: full rules (issue
+        // #6) adds a choice of what a town's output becomes, not more output.
+        $combinedProduce = [];
+        foreach ([$produce, $produceCi, $produceShock] as $mapping) {
+            foreach ($mapping as $townId => $count) {
+                $combinedProduce[$townId] = ($combinedProduce[$townId] ?? 0) + $count;
+            }
+        }
         try {
-            Rules::validateProduction($towns, $produce, $this->scenario->productionCost);
+            Rules::validateProduction($towns, $combinedProduce, $this->scenario->productionCost);
         } catch (IllegalMove $e) {
             throw new UserException($e->getMessage());
         }
         foreach ($produce as $townId => $count) {
             $delta[$townId] = ($delta[$townId] ?? 0) + $count;
             $towns[$townId]['troops'] += $count;
+        }
+        foreach ($produceCi as $townId => $count) {
+            $towns[$townId]['troopsCi'] += $count;
+        }
+        foreach ($produceShock as $townId => $count) {
+            $towns[$townId]['troopsShock'] += $count;
         }
 
         try {
@@ -713,11 +737,41 @@ class Game extends \Bga\GameFramework\Table
         }
 
         $this->board->adjustTroops($delta);
+        $this->board->adjustTroops($produceCi, 'troops_ci');
+        $this->board->adjustTroops($produceShock, 'troops_shock');
 
         foreach ($produce as $townId => $count) {
             $this->bga->notify->all(
                 'built',
                 clienttranslate('T${turn}: ${player_name} builds ${count} in ${town_label}'),
+                [
+                    'turn' => $this->round(),
+                    'player_id' => $actorId,
+                    'player_name' => $this->playerNameFor($actorId),
+                    'count' => $count,
+                    'town_label' => $this->townLabel($townId),
+                    'i18n' => ['town_label'],
+                ],
+            );
+        }
+        foreach ($produceCi as $townId => $count) {
+            $this->bga->notify->all(
+                'built',
+                clienttranslate('T${turn}: ${player_name} builds ${count} Counterinsurgency Unit(s) in ${town_label}'),
+                [
+                    'turn' => $this->round(),
+                    'player_id' => $actorId,
+                    'player_name' => $this->playerNameFor($actorId),
+                    'count' => $count,
+                    'town_label' => $this->townLabel($townId),
+                    'i18n' => ['town_label'],
+                ],
+            );
+        }
+        foreach ($produceShock as $townId => $count) {
+            $this->bga->notify->all(
+                'built',
+                clienttranslate('T${turn}: ${player_name} builds ${count} Shock Troops in ${town_label}'),
                 [
                     'turn' => $this->round(),
                     'player_id' => $actorId,
@@ -748,11 +802,15 @@ class Game extends \Bga\GameFramework\Table
         $this->bga->notify->all('empireMoved', '', [
             'player_id' => $actorId,
             'produced' => $produce,
+            'producedCi' => $produceCi,
+            'producedShock' => $produceShock,
             'moves' => array_map(
                 fn(array $move) => ['from' => $move[0], 'to' => $move[1], 'count' => $move[2]],
                 $moves,
             ),
             'troops' => array_map(fn(array $town) => $town['troops'], $towns),
+            'troopsCi' => array_map(fn(array $town) => $town['troopsCi'], $towns),
+            'troopsShock' => array_map(fn(array $town) => $town['troopsShock'], $towns),
         ]);
 
         $looked = $this->empireLooks($towns, $plan['arrivals'], $actorId);
@@ -802,8 +860,11 @@ class Game extends \Bga\GameFramework\Table
         $plan = Rules::attritionPlan($towns, $this->scenario->supplyPerTroop, $disband);
 
         // Only networks already carrying a warning lose anybody. One that has
-        // just gone short is marked below instead.
-        $losses = [];
+        // just gone short is marked below instead. $plan is in supply
+        // points, not a head count, now that full rules (issue #6) can make
+        // a troop cost more than one — splitLossByType below is where points
+        // turn back into actual troops, by type.
+        $pointLosses = [];
         foreach (Rules::components($towns) as $component) {
             $warned = false;
             foreach ($component as $townId) {
@@ -817,14 +878,41 @@ class Game extends \Bga\GameFramework\Table
             }
             foreach ($component as $townId) {
                 if (($plan[$townId] ?? 0) > 0) {
-                    $losses[$townId] = $plan[$townId];
+                    $pointLosses[$townId] = $plan[$townId];
                 }
             }
         }
 
-        if ($losses) {
-            $this->board->adjustTroops(array_map(fn(int $count) => -$count, $losses));
-            $this->reportStarvation($losses);
+        $troopDelta = [];
+        $ciDelta = [];
+        $shockDelta = [];
+        $troopsLost = [];
+        $presenceLost = 0;
+        foreach ($pointLosses as $townId => $points) {
+            $removed = Rules::splitLossByType(
+                $towns[$townId],
+                $points,
+                $this->scenario->unitPresence(),
+                $this->scenario->supplyPerTroop,
+            );
+            if ($removed['troops'] > 0) {
+                $troopDelta[$townId] = -$removed['troops'];
+            }
+            if ($removed['troopsCi'] > 0) {
+                $ciDelta[$townId] = -$removed['troopsCi'];
+            }
+            if ($removed['troopsShock'] > 0) {
+                $shockDelta[$townId] = -$removed['troopsShock'];
+            }
+            $troopsLost[$townId] = $removed['troops'] + $removed['troopsCi'] + $removed['troopsShock'];
+            $presenceLost += $removed['presence'];
+        }
+
+        if ($troopsLost) {
+            $this->board->adjustTroops($troopDelta);
+            $this->board->adjustTroops($ciDelta, 'troops_ci');
+            $this->board->adjustTroops($shockDelta, 'troops_shock');
+            $this->reportStarvation($troopsLost, $presenceLost);
         }
 
         // Whatever is still short is next turn's warning; anything that came
@@ -838,35 +926,34 @@ class Game extends \Bga\GameFramework\Table
 
         $this->bga->notify->all('starvationWarning', '', ['starving' => $forecast]);
 
-        return [array_sum($losses), array_sum($forecast) > 0];
+        return [array_sum($troopsLost), array_sum($forecast) > 0];
     }
 
     /**
-     * @param array<string, int> $losses town id => troops that starved
+     * @param array<string, int> $losses town id => troops of any type that starved
      */
-    private function reportStarvation(array $losses): void
+    private function reportStarvation(array $losses, int $presenceLost): void
     {
         $starved = array_sum($losses);
-        $points = $starved * $this->scenario->unitPresence();
         $insurgencyId = $this->playerIdForSide(Rules::INSURGENCY);
-        $this->addScore($insurgencyId, $points);
+        $this->addScore($insurgencyId, $presenceLost);
 
+        $towns = $this->board->towns();
         $this->bga->notify->all(
             'troopsStarved',
             clienttranslate('T${turn}: ${count} Empire troops starve for want of supply in ${town_labels} — ${player_name} scores ${points}'),
             [
                 'turn' => $this->round(),
                 'count' => $starved,
-                'points' => $points,
+                'points' => $presenceLost,
                 'losses' => $losses,
                 'town_labels' => $this->townLabels(array_keys($losses)),
                 'i18n' => ['town_labels'],
                 'player_id' => $insurgencyId,
                 'player_name' => $this->playerNameFor($insurgencyId),
-                'troops' => array_map(
-                    fn(array $town) => $town['troops'],
-                    $this->board->towns(),
-                ),
+                'troops' => array_map(fn(array $town) => $town['troops'], $towns),
+                'troopsCi' => array_map(fn(array $town) => $town['troopsCi'], $towns),
+                'troopsShock' => array_map(fn(array $town) => $town['troopsShock'], $towns),
             ],
         );
     }
@@ -885,6 +972,12 @@ class Game extends \Bga\GameFramework\Table
     private function empireLooks(array $towns, array $arrivals, int $actorId): int
     {
         $looks = Rules::peekPlan($towns, $arrivals, $this->scenario->unitPeek());
+        // Full rules only (issue #6): a neighbouring Counterinsurgency Unit
+        // adds to the look here, on top of whatever a town's own garrison
+        // already earned above — never instead of it.
+        foreach (Rules::neighborPeekPlan($towns) as $townId => $extra) {
+            $looks[$townId] = ($looks[$townId] ?? 0) + $extra;
+        }
         if (!$looks) {
             return 0;
         }

@@ -839,6 +839,27 @@ $board: #e6e6e8;
     .iaw-detail-name { margin-top: 0; }
 }
 
+/********* the build choice dialog (full rules, option 105, issue #6) *********/
+
+.iaw-build-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.iaw-build-choice-button {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    text-align: left;
+}
+
+.iaw-build-choice-detail {
+    font-size: 12px;
+    font-weight: normal;
+    opacity: 0.85;
+}
+
 .iaw-pile-position {
     min-width: 42px;
     font-size: 11px;
@@ -1678,6 +1699,32 @@ $board: #e6e6e8;
 
 @keyframes iaw-build-pulse {
     50% { transform: scale(1.3); opacity: 0.65; }
+}
+
+// Full rules only (option 105, issue #6): the Counterinsurgency Unit and
+// Shock Troops, as a small line of their own under the base garrison rather
+// than folded into its count — CI carries no presence at all, so folding it
+// in would read as zero and hide that it is standing there.
+.iaw-fullrules-badges {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    margin-top: 1px;
+    font-size: 9px;
+    font-weight: bold;
+    line-height: 1.1;
+}
+
+.iaw-ci-badge,
+.iaw-shock-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 2px;
+    border-radius: 3px;
+    color: $empire;
+    background: rgba(255, 255, 255, 0.6);
 }
 
 // Marches being staged, drawn along the roads they follow.

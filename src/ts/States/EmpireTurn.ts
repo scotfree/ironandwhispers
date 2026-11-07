@@ -35,6 +35,13 @@ import { endOfferHtml, endOfferLabel } from "../EndOffer";
 export class EmpireTurn {
     /** Town id => troops being built there this turn. */
     private produce: Record<string, number> = {};
+    /**
+     * Full rules only (option 105, issue #6): the build popup's other two
+     * buttons. Share `produce`'s town-id keys and the same capacity, but
+     * land in their own columns on the board.
+     */
+    private produceCi: Record<string, number> = {};
+    private produceShock: Record<string, number> = {};
     private moves: StagedMove[] = [];
     private source: string | null = null;
     private step: 'build' | 'move' | 'starve' = 'build';
@@ -43,6 +50,8 @@ export class EmpireTurn {
     /** Standing offer to end the game, sent with the turn. */
     private offerEnd = false;
     private args: EmpireTurnArgs;
+    /** Rebuilt on every open — see BoardView.showPile for why a kept instance fails. */
+    private buildDialog: PopinDialog | null = null;
 
     constructor(
         private game: Game,
@@ -58,6 +67,7 @@ export class EmpireTurn {
             networks: args?.networks ?? [],
             offeredEnd: args?.offeredEnd ?? false,
             opponentOfferedEnd: args?.opponentOfferedEnd ?? false,
+            fullRules: args?.fullRules ?? false,
         };
         this.reset();
 
@@ -94,6 +104,8 @@ export class EmpireTurn {
 
     private reset(): void {
         this.produce = {};
+        this.produceCi = {};
+        this.produceShock = {};
         this.moves = [];
         this.disband = {};
         this.source = null;
@@ -107,6 +119,11 @@ export class EmpireTurn {
         return Object.keys(this.args.production).filter(id => this.args.production[id] > 0);
     }
 
+    /** Every type staged at this town this turn, combined — one capacity shared by all three. */
+    private stagedAt(townId: string): number {
+        return (this.produce[townId] ?? 0) + (this.produceCi[townId] ?? 0) + (this.produceShock[townId] ?? 0);
+    }
+
     /**
      * How many more troops this town may build, given what is already staged.
      *
@@ -114,10 +131,25 @@ export class EmpireTurn {
      * ceiling caps what it can keep, not what it can raise, and building past
      * it is legal — the panel warns instead, because attrition gives a turn of
      * grace and the troops may well be marched out to supply before it falls.
+     *
+     * Full rules (option 105, issue #6): capacity is shared across all three
+     * types, so a town that can build 2 may build one of each rather than
+     * two of the base unit.
      */
     private buildRoom(townId: string): number {
         const offered = this.args.production[townId] ?? 0;
-        return Math.max(0, offered - (this.produce[townId] ?? 0));
+        return Math.max(0, offered - this.stagedAt(townId));
+    }
+
+    /** Everything staged to build here this turn, of any type, for the purple pulse. */
+    private combinedProduce(): Record<string, number> {
+        const combined: Record<string, number> = { ...this.produce };
+        [this.produceCi, this.produceShock].forEach(staged => {
+            Object.entries(staged).forEach(([townId, count]) => {
+                combined[townId] = (combined[townId] ?? 0) + count;
+            });
+        });
+        return combined;
     }
 
     // -- staging ------------------------------------------------------------
@@ -130,10 +162,19 @@ export class EmpireTurn {
         }
 
         if (this.step === 'build') {
-            // Click again to build another, while supply and the town allow it.
-            if (this.buildRoom(townId) > 0) {
-                this.produce[townId] = (this.produce[townId] ?? 0) + 1;
+            if (this.buildRoom(townId) <= 0) {
+                this.refresh();
+                return;
             }
+            // Full rules (option 105, issue #6): which of the three types
+            // goes up is a real choice, so it asks rather than assuming the
+            // base unit. The popup's own buttons call refresh() when one is
+            // chosen — off, a click still just builds the base unit.
+            if (this.args.fullRules) {
+                this.showBuildChoice(townId);
+                return;
+            }
+            this.produce[townId] = (this.produce[townId] ?? 0) + 1;
             this.refresh();
             return;
         }
@@ -167,6 +208,73 @@ export class EmpireTurn {
         } else {
             this.moves.push({ from, to, count: 1 });
         }
+    }
+
+    // -- the build popup (full rules, option 105, issue #6) -----------------
+
+    /**
+     * Three buttons: the base unit, the Counterinsurgency Unit, and Shock
+     * Troops. A BGA popin's close button destroys its DOM, so this is
+     * rebuilt on every open rather than kept — see BoardView.showPile.
+     */
+    private showBuildChoice(townId: string): void {
+        const scenario = this.bga.gameui.gamedatas.scenario;
+
+        this.buildDialog?.destroy();
+        this.buildDialog = new ebg.popindialog();
+        this.buildDialog.create('iaw-build-choice-dialog');
+        this.buildDialog.setMaxWidth(440);
+        this.buildDialog.setTitle(_('What to build in') + ' ' + this.townLabel(townId));
+        this.buildDialog.setContent(this.buildChoiceHtml(scenario));
+        this.buildDialog.show();
+
+        const choose = (apply: () => void) => {
+            apply();
+            this.buildDialog?.destroy();
+            this.buildDialog = null;
+            this.refresh();
+        };
+
+        document.getElementById('iaw-build-choice-base')?.addEventListener('click', () => choose(() => {
+            this.produce[townId] = (this.produce[townId] ?? 0) + 1;
+        }));
+        document.getElementById('iaw-build-choice-ci')?.addEventListener('click', () => choose(() => {
+            this.produceCi[townId] = (this.produceCi[townId] ?? 0) + 1;
+        }));
+        document.getElementById('iaw-build-choice-shock')?.addEventListener('click', () => choose(() => {
+            this.produceShock[townId] = (this.produceShock[townId] ?? 0) + 1;
+        }));
+    }
+
+    private buildChoiceHtml(scenario: ScenarioView): string {
+        const base = scenario.unit;
+        const ci = scenario.fullRulesUnits.counterinsurgency;
+        const shock = scenario.fullRulesUnits.shock;
+
+        const button = (id: string, label: string, detail: string) => `
+            <button type="button" id="iaw-build-choice-${id}" class="bgabutton bgabutton_blue iaw-build-choice-button">
+                <b>${label}</b><br><span class="iaw-build-choice-detail">${detail}</span>
+            </button>`;
+
+        const basePresence = _('${n} presence').replace('${n}', String(base.presence));
+        const basePeek = base.peek > 0
+            ? _(', reads ${n} card(s)').replace('${n}', String(base.peek))
+            : _(', reads nothing');
+
+        const parts = [button('base', base.label, basePresence + basePeek)];
+
+        if (ci) {
+            parts.push(button('ci', ci.label, _('No presence — reads ${own} here and ${neighbor} in each neighbouring location')
+                .replace('${own}', String(ci.peek))
+                .replace('${neighbor}', String(ci.reveal_neighbors ?? 0))));
+        }
+        if (shock) {
+            parts.push(button('shock', shock.label, _('${n} presence — costs ${cost} supply')
+                .replace('${n}', String(shock.presence))
+                .replace('${cost}', String(shock.supply_cost ?? scenario.supplyPerTroop))));
+        }
+
+        return `<div class="iaw-build-choice">${parts.join('')}</div>`;
     }
 
     /** Towns troops may march out of. */
@@ -305,7 +413,7 @@ export class EmpireTurn {
             }
         });
         this.game.board.setTroopDelta(delta);
-        this.game.board.setBuildDelta({ ...this.produce });
+        this.game.board.setBuildDelta(this.combinedProduce());
         this.game.board.setMoveArrows(this.moves);
         this.game.board.setLossDelta(this.step === 'starve' ? { ...this.disband } : {});
         this.game.board.setStarveChoices(this.step === 'starve' ? this.lossChoices() : []);
@@ -334,7 +442,9 @@ export class EmpireTurn {
             };
         }
         if (this.step === 'build') {
-            return { text: _('${you} may build: click a highlighted town, again for another troop') };
+            return { text: this.args.fullRules
+                ? _('${you} may build: click a highlighted town to choose what to raise there')
+                : _('${you} may build: click a highlighted town, again for another troop') };
         }
         if (this.source === null) {
             return { text: _('${you} may select a town to move troops from') };
@@ -368,11 +478,19 @@ export class EmpireTurn {
     private stagingHtml(): string {
         const lines: string[] = [];
 
-        const built = Object.entries(this.produce).filter(([, count]) => count > 0);
-        lines.push(built.length
-            ? built.map(([townId, count]) =>
-                `<div>${_('Building')} ${count} ${_('at')} <b>${this.townLabel(townId)}</b></div>`).join('')
-            : `<div>${_('Building nothing')}</div>`);
+        const scenario = this.bga.gameui.gamedatas.scenario;
+        const builtLines = (produce: Record<string, number>, label: string) =>
+            Object.entries(produce)
+                .filter(([, count]) => count > 0)
+                .map(([townId, count]) =>
+                    `<div>${_('Building')} ${count} ${label} ${_('at')} <b>${this.townLabel(townId)}</b></div>`);
+
+        const built = [
+            ...builtLines(this.produce, scenario.unit.label),
+            ...builtLines(this.produceCi, scenario.fullRulesUnits.counterinsurgency?.label ?? _('Counterinsurgency Unit')),
+            ...builtLines(this.produceShock, scenario.fullRulesUnits.shock?.label ?? _('Shock Troops')),
+        ];
+        lines.push(built.length ? built.join('') : `<div>${_('Building nothing')}</div>`);
 
         const network = this.game.board.networkOf(this.buildable()[0] ?? '');
         if (network) {
@@ -520,6 +638,10 @@ export class EmpireTurn {
             // Every troop a starving army loses, chosen in the Starve step. The
             // server refuses a turn whose choice is not the whole shortfall.
             disband: JSON.stringify(this.step === 'starve' ? this.disband : {}),
+            // Full rules only (option 105, issue #6): empty off the table or
+            // when nothing of that type was chosen, same as `produce`.
+            produceCi: JSON.stringify(this.produceCi),
+            produceShock: JSON.stringify(this.produceShock),
         });
     }
 }

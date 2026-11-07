@@ -16,6 +16,8 @@ import pytest
 
 from .config import CardType, GameMap, Scenario, TownDef, Unit, load_scenario
 from .engine import (
+    CI_UNIT,
+    SHOCK_UNIT,
     Card,
     EmpireTurn,
     IllegalMove,
@@ -42,6 +44,12 @@ from .engine import (
 )
 
 INFANTRY = Unit(id="infantry", label="Imperial Infantry", presence=3, movement=1, peek=1)
+# Full rules (issue #6): present in every test scenario's unit registry, as
+# they are in every real one, even though most tests never build either —
+# `town_troop_presence` and friends look these up unconditionally.
+CI = Unit(id=CI_UNIT, label="Counterinsurgency Unit", presence=0, movement=1, peek=2,
+          reveal_neighbors=1)
+SHOCK = Unit(id=SHOCK_UNIT, label="Shock Troops", presence=2, movement=1, peek=1, supply_cost=2)
 CARD_TYPES = {
     "influence0": CardType(id="influence0", label="Agent +0", presence=0),
     "influence1": CardType(id="influence1", label="Agent +1", presence=1),
@@ -65,6 +73,7 @@ def line_map(n: int = 3, supply: int = 2, producers: tuple[str, ...] = ("a",)) -
 def scenario(**overrides) -> Scenario:
     fields = dict(
         id="test", label="Test", map=line_map(), unit=INFANTRY,
+        units={INFANTRY.id: INFANTRY, CI.id: CI, SHOCK.id: SHOCK},
         card_types=CARD_TYPES, hand_size=2,
         deck={"influence1": 4, "influence0": 4},
         supply_per_troop=1, production_cost=1,

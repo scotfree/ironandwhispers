@@ -32,6 +32,15 @@ class IllegalMove(Exception):
     """Raised when a submitted turn violates the rules."""
 
 
+# Full rules only (issue #6, game option 105): the two extra unit types a
+# human Empire player may choose at the build popup, alongside whatever
+# `scenario.unit` is. Hardcoded ids, on the same precedent as the deck's
+# influence0..3 — arbitrary, and not worth a second scenario field when
+# every scenario offers the same two from data/units.json.
+CI_UNIT = "counterinsurgency"
+SHOCK_UNIT = "shock"
+
+
 @dataclass
 class Card:
     """One card in the Insurgency deck.
@@ -66,7 +75,18 @@ class Town:
 
     # Empire troops standing here. Resolution spends them: they are removed
     # from play, which is what makes committing to a town cost something.
+    #
+    # `troops` is always the scenario's base unit (`scenario.unit` — Imperial
+    # Infantry in baseline). The other two exist only under full rules
+    # (CI_UNIT, SHOCK_UNIT; issue #6, game option 105) and only ever hold what
+    # a human Empire player chose to build at the popup — no bot builds
+    # either, so a bot-controlled army's two fields are always 0 and every
+    # formula below collapses back to the base game exactly. Neither type may
+    # march yet: they stay in the town they were built in until it resolves
+    # or they starve. Resolution and attrition spend all three alike.
     troops: int = 0
+    troops_ci: int = 0
+    troops_shock: int = 0
 
     resolved: bool = False
     winner: Side | None = None
@@ -82,9 +102,15 @@ class Town:
     starving: int = 0
 
     @property
+    def total_troops(self) -> int:
+        """Every troop standing here, of any type — occupancy, not presence
+        or supply cost, which differ by type. See `troops` above."""
+        return self.troops + self.troops_ci + self.troops_shock
+
+    @property
     def is_occupied(self) -> bool:
         """Whether the Empire may generate here."""
-        return self.troops > 0
+        return self.total_troops > 0
 
     @property
     def cards(self) -> list[Card]:
@@ -113,6 +139,14 @@ class EmpireTurn:
     `produce` maps a production town to how many troops to raise there. Troops
     appear where they are built and have to march from there.
 
+    `produce_ci` and `produce_shock` are the same, for the two unit types
+    full rules add (issue #6, game option 105) — the Counterinsurgency Unit
+    and Shock Troops. A town's capacity is shared across all three: what
+    `production_capacity` allows is the combined total, split however the
+    build chooses. Empty for any bot and for the base game, since neither
+    exists without full rules on and nothing but a person ever builds one.
+    Unlike `produce`, neither type may march yet — see `Town.troops_ci`.
+
     `disband` optionally names where to take attrition losses from. Anything not
     specified is taken from the largest garrisons, so a turn is always legal.
 
@@ -122,6 +156,8 @@ class EmpireTurn:
     decision in it.
     """
     produce: dict[str, int] = field(default_factory=dict)
+    produce_ci: dict[str, int] = field(default_factory=dict)
+    produce_shock: dict[str, int] = field(default_factory=dict)
     moves: list[tuple[str, str, int]] = field(default_factory=list)
     resolve: str | None = None
     disband: dict[str, int] = field(default_factory=dict)
@@ -156,7 +192,8 @@ class GameState:
                 tid: Town(
                     id=t.id, label=t.label, neighbors=t.neighbors,
                     pile=list(t.pile), revealed=list(t.revealed),
-                    troops=t.troops, resolved=t.resolved,
+                    troops=t.troops, troops_ci=t.troops_ci, troops_shock=t.troops_shock,
+                    resolved=t.resolved,
                     winner=t.winner, resolved_card_presence=t.resolved_card_presence,
                     resolved_troop_presence=t.resolved_troop_presence,
                 )
@@ -186,10 +223,10 @@ class GameState:
         return sum(c.presence for c in self.towns[town_id].cards)
 
     def troop_presence_in(self, town_id: str) -> int:
-        return self.towns[town_id].troops * self.scenario.unit.presence
+        return town_troop_presence(self.scenario, self.towns[town_id])
 
     def total_troops(self) -> int:
-        return sum(t.troops for t in self.towns.values())
+        return sum(t.total_troops for t in self.towns.values())
 
 
 # ---------------------------------------------------------------------------
@@ -230,6 +267,39 @@ def new_game(scenario: Scenario, rng: random.Random | None = None) -> GameState:
     return state
 
 
+def town_troop_presence(scenario: Scenario, town: Town) -> int:
+    """All three unit types' presence, added up. The one place this lives.
+
+    Collapses to `town.troops * scenario.unit.presence` — the whole of the
+    base game — whenever the other two are 0, which is always, unless full
+    rules let a human Empire player build one.
+    """
+    return (
+        town.troops * scenario.unit.presence
+        + town.troops_ci * scenario.units[CI_UNIT].presence
+        + town.troops_shock * scenario.units[SHOCK_UNIT].presence
+    )
+
+
+def unit_supply_cost(scenario: Scenario, unit_id: str) -> int:
+    """What one troop of this type costs the network, per turn it stands.
+
+    Most units use the scenario's supply_per_troop; a unit may cost more of
+    it — Shock Troops, double, under full rules — via its own `supply_cost`.
+    """
+    unit = scenario.units[unit_id]
+    return unit.supply_cost if unit.supply_cost is not None else scenario.supply_per_troop
+
+
+def town_supply_cost(scenario: Scenario, town: Town) -> int:
+    """What this town's whole garrison costs its network, by type."""
+    return (
+        town.troops * unit_supply_cost(scenario, scenario.unit.id)
+        + town.troops_ci * unit_supply_cost(scenario, CI_UNIT)
+        + town.troops_shock * unit_supply_cost(scenario, SHOCK_UNIT)
+    )
+
+
 # ---------------------------------------------------------------------------
 # Resolution
 # ---------------------------------------------------------------------------
@@ -246,7 +316,7 @@ def resolve_town(state: GameState, town_id: str, declared_by: Side | None) -> Si
 
     # Both sides bring presence to a town; only what carries it differs.
     card_presence = sum(c.presence for c in town.cards)
-    troop_presence = town.troops * state.scenario.unit.presence
+    troop_presence = town_troop_presence(state.scenario, town)
 
     if troop_presence > card_presence:
         winner = Side.EMPIRE
@@ -266,7 +336,7 @@ def resolve_town(state: GameState, town_id: str, declared_by: Side | None) -> Si
 
     stats.resolution(
         state, declared_by, winner, card_presence, troop_presence,
-        points, 0 if winner is Side.EMPIRE else town.troops,
+        points, 0 if winner is Side.EMPIRE else town.total_troops,
         list(town.cards), location_points,
     )
 
@@ -286,6 +356,8 @@ def resolve_town(state: GameState, town_id: str, declared_by: Side | None) -> Si
         town.revealed.clear()
     else:
         town.troops = 0
+        town.troops_ci = 0
+        town.troops_shock = 0
 
     who = "auto" if declared_by is None else declared_by.value
     state.log.append(
@@ -307,7 +379,7 @@ def empire_components(state: GameState) -> list[set[str]]:
     Cutting a network in two gives two smaller ceilings, which is the whole
     point of the Insurgency attacking a junction.
     """
-    occupied = {t.id for t in state.towns.values() if t.troops > 0}
+    occupied = {t.id for t in state.towns.values() if t.total_troops > 0}
     seen: set[str] = set()
     components: list[set[str]] = []
 
@@ -359,13 +431,25 @@ def town_production(state: GameState, town_id: str) -> int:
 
 
 def ceiling(state: GameState, component: set[str]) -> int:
-    """How many troops a network can keep standing."""
-    supply = sum(town_supply(state, tid) for tid in component)
-    return supply // state.scenario.supply_per_troop
+    """How much supply a network has to keep troops standing.
+
+    A raw supply total now rather than a troop count divided down — the
+    division used to happen here because every troop cost the same, but full
+    rules (issue #6) can mix in Shock Troops at double cost, so the only
+    place left to divide is `troops_in`, troop by troop and type by type.
+    The two are still compared the same way everywhere: `troops_in <=
+    ceiling`. Numerically identical to the old formula whenever
+    supply_per_troop is 1, which is every scenario that has ever been tuned;
+    only the stale control scenarios at 2 (CLAUDE.md) could tell the
+    difference, and only once something costs more than 1.
+    """
+    return sum(town_supply(state, tid) for tid in component)
 
 
 def troops_in(state: GameState, component: set[str]) -> int:
-    return sum(state.towns[tid].troops for tid in component)
+    """What this network's whole garrison costs it, by type — not a head
+    count. See `ceiling` above for why, and `town_supply_cost` for the sum."""
+    return sum(town_supply_cost(state.scenario, state.towns[tid]) for tid in component)
 
 
 def empire_holds(state: GameState, town_id: str) -> bool:
@@ -380,7 +464,7 @@ def empire_holds(state: GameState, town_id: str) -> bool:
     town = state.towns[town_id]
     if town.resolved:
         return town.winner is Side.EMPIRE
-    return town.troops > 0
+    return town.total_troops > 0
 
 
 def production_sites(state: GameState) -> list[str]:
@@ -415,7 +499,7 @@ def empire_is_eliminated(state: GameState) -> bool:
     move it could make for the rest of the game, so there is no game left.
     """
     return (
-        all(town.troops == 0 for town in state.towns.values())
+        all(town.total_troops == 0 for town in state.towns.values())
         and not production_sites(state)
     )
 
@@ -436,7 +520,7 @@ def _can_declare(state: GameState, town_id: str, side: Side) -> bool:
     if town.resolved:
         return False
     if side is Side.EMPIRE:
-        return town.troops > 0
+        return town.total_troops > 0
     return town.card_count > 0
 
 
@@ -537,9 +621,18 @@ def apply_empire_turn(state: GameState, turn: EmpireTurn) -> None:
     #    allowed, and attrition settles it — with a turn of grace, so an
     #    overshoot is a stated risk rather than an instant loss, and you may
     #    build now and march out to the supply that will feed them.
-    for town_id, count in turn.produce.items():
-        if count <= 0:
-            raise IllegalMove("produce count must be positive")
+    #
+    #    Capacity is one number shared by all three types (`produce`,
+    #    `produce_ci`, `produce_shock`) — full rules (issue #6) adds a choice
+    #    of what a town's output becomes, not more output.
+    combined: dict[str, int] = {}
+    for mapping in (turn.produce, turn.produce_ci, turn.produce_shock):
+        for town_id, count in mapping.items():
+            if count <= 0:
+                raise IllegalMove("produce count must be positive")
+            combined[town_id] = combined.get(town_id, 0) + count
+
+    for town_id, count in combined.items():
         town = state.towns.get(town_id)
         if town is None:
             raise IllegalMove(f"unknown town {town_id!r}")
@@ -549,8 +642,18 @@ def apply_empire_turn(state: GameState, turn: EmpireTurn) -> None:
             raise IllegalMove(
                 f"{town_id} can build {production_capacity(state, town_id)}, asked for {count}"
             )
-        town.troops += count
-        state.log.append(f"R{state.round_number}: Empire builds {count} at {town.label}")
+
+    for town_id, count in turn.produce.items():
+        state.towns[town_id].troops += count
+        state.log.append(f"R{state.round_number}: Empire builds {count} at {state.towns[town_id].label}")
+    for town_id, count in turn.produce_ci.items():
+        state.towns[town_id].troops_ci += count
+        state.log.append(
+            f"R{state.round_number}: Empire builds {count} Counterinsurgency at {state.towns[town_id].label}")
+    for town_id, count in turn.produce_shock.items():
+        state.towns[town_id].troops_shock += count
+        state.log.append(
+            f"R{state.round_number}: Empire builds {count} Shock Troops at {state.towns[town_id].label}")
 
     # 3. Move. Record departures first so we can work out who stayed still.
     departed: dict[str, int] = {}
@@ -596,11 +699,27 @@ def apply_empire_turn(state: GameState, turn: EmpireTurn) -> None:
         # town.troops already reflects both departures and arrivals, so the
         # troops that held still are whatever is left once arrivals are removed.
         # A troop generated this turn counts as stationary: it did not move.
+        # Counterinsurgency troops never march (Town.troops_ci), so every one
+        # of them is stationary by definition and always adds its own peek.
         arrived = sum(q for _, d, q in turn.moves if d == town.id)
-        stationary = town.troops - arrived
-        if stationary <= 0:
+        stationary = max(0, town.troops - arrived)
+        own_peek = stationary * scenario.unit.peek + town.troops_ci * scenario.units[CI_UNIT].peek
+        if own_peek > 0:
+            looked += _peek(state, town, own_peek)
+
+    # Full rules only (issue #6): a Counterinsurgency Unit also reads the
+    # towns next door, one card per neighbour per unit, on top of its own
+    # town's look above. It needs no presence there at all — the whole point
+    # of the unit is seeing into ground the Empire does not hold.
+    for town in state.towns.values():
+        reveal_each = town.troops_ci * scenario.units[CI_UNIT].reveal_neighbors
+        if reveal_each <= 0:
             continue
-        looked += _peek(state, town, stationary * scenario.unit.peek)
+        for neighbor_id in town.neighbors:
+            neighbor = state.towns[neighbor_id]
+            if neighbor.resolved or not neighbor.pile:
+                continue
+            looked += _peek(state, neighbor, reveal_each)
 
     # 5. Starve anything the networks could not supply as of last turn, and
     #    warn about anything they cannot supply now.
@@ -616,8 +735,12 @@ def attrition_plan(state: GameState, disband: dict[str, int]) -> dict[str, int]:
 
     Towns are worked in order of garrison size, largest first, so the loss
     falls on the biggest stacks — with anything the Empire named in `disband`
-    moved to the front. Within a town there is no choice to make: a town holds a
-    count of troops, not troops.
+    moved to the front. "Size" and the plan's values are both in supply
+    points, not a head count, now that full rules (issue #6) can make a
+    troop cost more than one — `disband` names a town's shortfall in the same
+    points `town_supply_cost` charges it, which for a town with no Shock
+    Troops is exactly the troop count it always was. `_starve_troops` is
+    where points turn back into actual troops, by type, when the plan runs.
     """
     plan: dict[str, int] = {}
 
@@ -632,16 +755,20 @@ def attrition_plan(state: GameState, disband: dict[str, int]) -> dict[str, int]:
         # the set directly left them to Python's per-process hash order, so the
         # same game could starve a different town on a different run.
         order = [tid for tid in sorted(component) if disband.get(tid)]
-        order += sorted(sorted(component), key=lambda tid: -state.towns[tid].troops)
+        order += sorted(
+            sorted(component),
+            key=lambda tid: -town_supply_cost(state.scenario, state.towns[tid]),
+        )
 
         taken = 0
         for town_id in order:
             if taken >= over:
                 break
             already = plan.get(town_id, 0)
-            available = state.towns[town_id].troops - already
-            # A town named in `disband` gives up that many and no more; one that
-            # is not named will give up everything it has if it comes to it.
+            available = town_supply_cost(state.scenario, state.towns[town_id]) - already
+            # A town named in `disband` gives up that many points and no more;
+            # one that is not named will give up everything it has if it
+            # comes to it.
             cap = disband[town_id] - already if town_id in disband else available
             take = min(available, over - taken, max(0, cap))
             if take > 0:
@@ -682,15 +809,15 @@ def validate_disband(state: GameState, disband: dict[str, int]) -> None:
             raise IllegalMove(f"a loss at {town_id} must be positive")
         if town_id not in network_of:
             raise IllegalMove(f"{town_id} is not in an army that starves this turn")
-        if count > state.towns[town_id].troops:
-            raise IllegalMove(
-                f"{town_id} has {state.towns[town_id].troops} troops, cannot lose {count}")
+        cost = town_supply_cost(state.scenario, state.towns[town_id])
+        if count > cost:
+            raise IllegalMove(f"{town_id} can lose at most {cost} points of supply, cannot lose {count}")
         chosen[network_of[town_id]] += count
 
     for i, (component, over) in enumerate(required):
         if chosen[i] != over:
             raise IllegalMove(
-                f"the army at {', '.join(sorted(component))} must lose {over} troops, "
+                f"the army at {', '.join(sorted(component))} must lose {over} points of supply, "
                 f"{chosen[i]} chosen")
 
 
@@ -723,17 +850,19 @@ def _attrition(state: GameState, disband: dict[str, int]) -> tuple[int, bool]:
     # Apply only to networks that were already carrying a warning. A network
     # that has just gone short is marked below instead.
     starved = 0
+    presence_lost = 0
     for component in empire_components(state):
         if not any(state.towns[tid].starving for tid in component):
             continue
         for town_id in component:
             take = plan.get(town_id, 0)
             if take:
-                state.towns[town_id].troops -= take
-                starved += take
+                troops, presence = _starve_troops(state.scenario, state.towns[town_id], take)
+                starved += troops
+                presence_lost += presence
 
     if starved:
-        state.scores[Side.INSURGENCY] += starved * state.scenario.unit.presence
+        state.scores[Side.INSURGENCY] += presence_lost
         state.log.append(
             f"R{state.round_number}: {starved} Empire troops starve for want of supply"
         )
@@ -745,6 +874,41 @@ def _attrition(state: GameState, disband: dict[str, int]) -> tuple[int, bool]:
         town.starving = forecast.get(town.id, 0)
 
     return starved, sum(forecast.values()) > 0
+
+
+def _starve_troops(scenario: Scenario, town: Town, points: int) -> tuple[int, int]:
+    """Remove troops worth at least `points` of supply, and report how many
+    troops and how much presence actually left the board.
+
+    `attrition_plan` works in supply points, which a town with no Shock
+    Troops cannot tell apart from a head count — this is the one place
+    points turn back into actual troops, by type, and only here does the
+    choice of *which* type matter.
+
+    Order is the Counterinsurgency Unit first, then the scenario's base
+    unit, Shock Troops last: CI carries no presence, so losing it first
+    costs nothing in the fight and hands the Insurgency nothing either —
+    strictly the cheapest loss on both counts, not a guess at which is
+    "worst." Between the other two, the cheaper-to-lose base unit goes
+    before Shock Troops, so an army sheds its least valuable combat troops
+    first and keeps its most expensive ones as long as the points allow.
+    """
+    removed = 0
+    presence_lost = 0
+    freed = 0
+    for unit_id, attr in ((CI_UNIT, "troops_ci"), (scenario.unit.id, "troops"), (SHOCK_UNIT, "troops_shock")):
+        if freed >= points:
+            break
+        cost = unit_supply_cost(scenario, unit_id)
+        presence = scenario.units[unit_id].presence
+        available = getattr(town, attr)
+        while available > 0 and freed < points:
+            available -= 1
+            freed += cost
+            removed += 1
+            presence_lost += presence
+        setattr(town, attr, available)
+    return removed, presence_lost
 
 
 def _peek(state: GameState, town: Town, look_count: int) -> int:
@@ -811,7 +975,7 @@ def prepare_turn(state: GameState) -> None:
 
 def town_is_uncontested(town: Town) -> bool:
     """Whether nobody has committed anything here — no troops, no cards."""
-    return town.troops == 0 and town.card_count == 0
+    return town.total_troops == 0 and town.card_count == 0
 
 
 def _end_game(state: GameState, reason: str, code: str = stats.END_BOARD) -> None:
@@ -844,7 +1008,7 @@ def tiebreak(state: GameState, side: Side) -> tuple[int, int, int]:
     """
     locations = sum(1 for t in state.towns.values() if t.winner is side)
     if side is Side.EMPIRE:
-        presence = sum(t.troops for t in state.towns.values()) * state.scenario.unit.presence
+        presence = sum(town_troop_presence(state.scenario, t) for t in state.towns.values())
     else:
         presence = sum(c.presence for t in state.towns.values() for c in t.cards)
     return (locations, presence, 1 if side is Side.EMPIRE else 0)

@@ -1426,8 +1426,8 @@ final class Bots
             if (!isset($spare[$key])) {
                 $spare[$key] = max(
                     0,
-                    Rules::ceiling($board, $component, $scenario->supplyPerTroop)
-                        - Rules::troopsIn($board, $component),
+                    Rules::ceiling($board, $component)
+                        - Rules::troopsIn($board, $component, $scenario->supplyPerTroop),
                 );
             }
 
@@ -1461,8 +1461,8 @@ final class Bots
         $disband = [];
 
         foreach (Rules::components($board) as $component) {
-            $over = Rules::troopsIn($board, $component)
-                - Rules::ceiling($board, $component, $scenario->supplyPerTroop);
+            $over = Rules::troopsIn($board, $component, $scenario->supplyPerTroop)
+                - Rules::ceiling($board, $component);
             if ($over <= 0) {
                 continue;
             }
@@ -1470,13 +1470,15 @@ final class Bots
             $order = $component;
             usort(
                 $order,
-                static fn(string $a, string $b) => $board[$b]['troops'] <=> $board[$a]['troops'],
+                static fn(string $a, string $b) =>
+                    Rules::townSupplyCost($board[$b], $scenario->supplyPerTroop)
+                        <=> Rules::townSupplyCost($board[$a], $scenario->supplyPerTroop),
             );
 
             foreach ($order as $townId) {
-                $troops = (int) $board[$townId]['troops'];
-                if ($troops > $over || !self::globIsJunction($board, $component, $townId)) {
-                    $disband[$townId] = $troops;
+                $cost = Rules::townSupplyCost($board[$townId], $scenario->supplyPerTroop);
+                if ($cost > $over || !self::globIsJunction($board, $component, $townId)) {
+                    $disband[$townId] = $cost;
                 }
             }
         }
@@ -1495,8 +1497,8 @@ final class Bots
         foreach (Rules::components($towns) as $component) {
             $over += max(
                 0,
-                Rules::troopsIn($towns, $component)
-                    - Rules::ceiling($towns, $component, $scenario->supplyPerTroop),
+                Rules::troopsIn($towns, $component, $scenario->supplyPerTroop)
+                    - Rules::ceiling($towns, $component),
             );
         }
         return $over;
@@ -2090,8 +2092,8 @@ final class Bots
             if (!$component) {
                 return;
             }
-            $room = Rules::ceiling($board, $component, $scenario->supplyPerTroop)
-                - Rules::troopsIn($board, $component);
+            $room = Rules::ceiling($board, $component)
+                - Rules::troopsIn($board, $component, $scenario->supplyPerTroop);
             if ($room >= $capacity) {
                 return;
             }

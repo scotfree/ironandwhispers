@@ -37,6 +37,28 @@ final class Rules
     public const EMPIRE = 'empire';
     public const INSURGENCY = 'insurgency';
 
+    /**
+     * Full rules only (issue #6, game option 105): the two extra unit types
+     * a human Empire player may choose at the build popup. Build-only — see
+     * `$town['troopsCi']` / `$town['troopsShock']` — neither may march yet,
+     * so no bot ever needs to know they exist.
+     */
+    public const CI_UNIT = 'counterinsurgency';
+    public const SHOCK_UNIT = 'shock';
+
+    /**
+     * Fixed stats for the two full-rules types. Kept in sync with
+     * data/units.json by tests/test_full_rules.php, not read from it:
+     * Rules.php stays free of the framework and takes plain arrays, and
+     * these two are not meant to vary by scenario the way the base unit's
+     * own stats do.
+     */
+    private const CI_PRESENCE = 0;
+    private const CI_PEEK = 2;
+    private const CI_REVEAL_NEIGHBORS = 1;
+    private const SHOCK_PRESENCE = 2;
+    private const SHOCK_SUPPLY_COST = 2;
+
     public static function otherSide(string $side): string
     {
         return $side === self::EMPIRE ? self::INSURGENCY : self::EMPIRE;
@@ -71,6 +93,46 @@ final class Rules
         return $troops * $unitPresence;
     }
 
+    /**
+     * All three unit types' presence, added up. Collapses to
+     * `troopPresence($town['troops'], $unitPresence)` — the whole of the
+     * base game — whenever the other two are 0, which is always unless full
+     * rules let a human Empire player build one.
+     *
+     * @param array{troops: int, troopsCi?: int, troopsShock?: int} $town
+     */
+    public static function townTroopPresence(array $town, int $unitPresence): int
+    {
+        return self::troopPresence((int) $town['troops'], $unitPresence)
+            + ((int) ($town['troopsCi'] ?? 0)) * self::CI_PRESENCE
+            + ((int) ($town['troopsShock'] ?? 0)) * self::SHOCK_PRESENCE;
+    }
+
+    /**
+     * Every troop standing here, of any type — occupancy, not presence or
+     * supply cost, which differ by type.
+     *
+     * @param array{troops: int, troopsCi?: int, troopsShock?: int} $town
+     */
+    public static function townTotalTroops(array $town): int
+    {
+        return (int) $town['troops'] + (int) ($town['troopsCi'] ?? 0) + (int) ($town['troopsShock'] ?? 0);
+    }
+
+    /**
+     * What this town's whole garrison costs its network, by type. Shock
+     * Troops cost double; everything else costs what the scenario's base
+     * unit does.
+     *
+     * @param array{troops: int, troopsCi?: int, troopsShock?: int} $town
+     */
+    public static function townSupplyCost(array $town, int $supplyPerTroop): int
+    {
+        return ((int) $town['troops']) * $supplyPerTroop
+            + ((int) ($town['troopsCi'] ?? 0)) * $supplyPerTroop
+            + ((int) ($town['troopsShock'] ?? 0)) * self::SHOCK_SUPPLY_COST;
+    }
+
     /** @param array<string, array> $towns */
     public static function unresolvedTownIds(array $towns): array
     {
@@ -99,7 +161,7 @@ final class Rules
     {
         $occupied = [];
         foreach ($towns as $townId => $town) {
-            if ($town['troops'] > 0) {
+            if (self::townTotalTroops($town) > 0) {
                 $occupied[$townId] = true;
             }
         }
@@ -149,21 +211,28 @@ final class Rules
     }
 
     /**
-     * How many troops a network can keep standing.
+     * How much supply a network has to keep troops standing.
+     *
+     * A raw supply total now rather than a troop count divided down — the
+     * division used to happen here because every troop cost the same, but
+     * full rules (issue #6) can mix in Shock Troops at double cost, so the
+     * only place left to divide is `troopsIn`, troop by troop and type by
+     * type. The two are still compared the same way everywhere: `troopsIn
+     * <= ceiling`. Numerically identical to the old formula whenever
+     * supplyPerTroop is 1, which is every scenario that has ever been
+     * tuned; only the stale control scenarios at 2 (CLAUDE.md) could tell
+     * the difference, and only once something costs more than 1.
      *
      * @param array<string, array> $towns
      * @param string[] $component
      */
-    public static function ceiling(array $towns, array $component, int $supplyPerTroop): int
+    public static function ceiling(array $towns, array $component): int
     {
-        if ($supplyPerTroop <= 0) {
-            return 0;
-        }
         $supply = 0;
         foreach ($component as $townId) {
             $supply += self::townSupply($towns[$townId]);
         }
-        return intdiv($supply, $supplyPerTroop);
+        return $supply;
     }
 
     /**
@@ -195,16 +264,22 @@ final class Rules
     }
 
     /**
+     * What this network's whole garrison costs it, by type — not a head
+     * count. See `ceiling` above for why, and `townSupplyCost` for the sum.
+     * `$supplyPerTroop` defaults to 1 so old 2-argument calls (every one
+     * before full rules) keep returning exactly the head count they always
+     * did; a real caller should pass the scenario's own value.
+     *
      * @param array<string, array> $towns
      * @param string[] $component
      */
-    public static function troopsIn(array $towns, array $component): int
+    public static function troopsIn(array $towns, array $component, int $supplyPerTroop = 1): int
     {
-        $troops = 0;
+        $cost = 0;
         foreach ($component as $townId) {
-            $troops += (int) $towns[$townId]['troops'];
+            $cost += self::townSupplyCost($towns[$townId], $supplyPerTroop);
         }
-        return $troops;
+        return $cost;
     }
 
     /**
@@ -229,7 +304,7 @@ final class Rules
         if ($town['resolved']) {
             return $town['winner'] === self::EMPIRE;
         }
-        return $town['troops'] > 0;
+        return self::townTotalTroops($town) > 0;
     }
 
     public static function productionSites(array $towns, int $productionCost): array
@@ -253,7 +328,7 @@ final class Rules
     public static function empireIsEliminated(array $towns, int $productionCost): bool
     {
         foreach ($towns as $town) {
-            if ($town['troops'] > 0) {
+            if (self::townTotalTroops($town) > 0) {
                 return false;
             }
         }
@@ -290,7 +365,7 @@ final class Rules
         }
         return max(
             0,
-            self::ceiling($towns, $component, $supplyPerTroop) - self::troopsIn($towns, $component),
+            self::ceiling($towns, $component) - self::troopsIn($towns, $component, $supplyPerTroop),
         );
     }
 
@@ -304,17 +379,22 @@ final class Rules
      * This is used twice each turn — once to decide what actually starves, and
      * once to forecast what will starve next turn if nothing changes.
      *
+     * "Size" and the plan's values are both in supply points, not a head
+     * count, now that full rules (issue #6) can make a troop cost more
+     * than one — a town with no Shock Troops costs exactly its troop
+     * count, so nothing here changes before full rules are on.
+     *
      * @param array<string, array> $towns
-     * @param array<string, int> $disband  the Empire's preferences
-     * @return array<string, int> town id => troops lost
+     * @param array<string, int> $disband  the Empire's preferences, in supply points
+     * @return array<string, int> town id => supply points lost
      */
     public static function attritionPlan(array $towns, int $supplyPerTroop, array $disband = []): array
     {
         $losses = [];
 
         foreach (self::components($towns) as $component) {
-            $over = self::troopsIn($towns, $component)
-                - self::ceiling($towns, $component, $supplyPerTroop);
+            $over = self::troopsIn($towns, $component, $supplyPerTroop)
+                - self::ceiling($towns, $component);
             if ($over <= 0) {
                 continue;
             }
@@ -326,7 +406,11 @@ final class Rules
                 }
             }
             $rest = $component;
-            usort($rest, static fn(string $a, string $b) => $towns[$b]['troops'] <=> $towns[$a]['troops']);
+            usort(
+                $rest,
+                static fn(string $a, string $b) =>
+                    self::townSupplyCost($towns[$b], $supplyPerTroop) <=> self::townSupplyCost($towns[$a], $supplyPerTroop),
+            );
             $order = array_merge($order, $rest);
 
             $taken = 0;
@@ -335,10 +419,10 @@ final class Rules
                     break;
                 }
                 $already = $losses[$townId] ?? 0;
-                $available = (int) $towns[$townId]['troops'] - $already;
-                // A town named in $disband gives up that many and no more; one
-                // that is not named gives up everything it has if it comes to
-                // it.
+                $available = self::townSupplyCost($towns[$townId], $supplyPerTroop) - $already;
+                // A town named in $disband gives up that many points and no
+                // more; one that is not named gives up everything it has if
+                // it comes to it.
                 $cap = isset($disband[$townId]) ? $disband[$townId] - $already : $available;
                 $take = min($available, $over - $taken, max(0, $cap));
                 if ($take > 0) {
@@ -373,8 +457,8 @@ final class Rules
                     break;
                 }
             }
-            $over = self::troopsIn($towns, $component)
-                - self::ceiling($towns, $component, $supplyPerTroop);
+            $over = self::troopsIn($towns, $component, $supplyPerTroop)
+                - self::ceiling($towns, $component);
             if ($warned && $over > 0) {
                 $required[] = ['towns' => $component, 'over' => $over];
             }
@@ -415,8 +499,9 @@ final class Rules
             if (!isset($networkOf[$townId])) {
                 throw new IllegalMove("{$townId} is not in an army that starves this turn");
             }
-            if ($count > $towns[$townId]['troops']) {
-                throw new IllegalMove("{$townId} has {$towns[$townId]['troops']} troops, cannot lose {$count}");
+            $cost = self::townSupplyCost($towns[$townId], $supplyPerTroop);
+            if ($count > $cost) {
+                throw new IllegalMove("{$townId} can lose at most {$cost} points of supply, cannot lose {$count}");
             }
             $chosen[$networkOf[$townId]] += $count;
         }
@@ -425,7 +510,7 @@ final class Rules
             if ($chosen[$index] !== $network['over']) {
                 $where = implode(', ', $network['towns']);
                 throw new IllegalMove(
-                    "the army at {$where} must lose {$network['over']} troops, {$chosen[$index]} chosen"
+                    "the army at {$where} must lose {$network['over']} points of supply, {$chosen[$index]} chosen"
                 );
             }
         }
@@ -448,7 +533,7 @@ final class Rules
             return false;
         }
         return $side === self::EMPIRE
-            ? $town['troops'] > 0
+            ? self::townTotalTroops($town) > 0
             : self::townCardCount($town) > 0;
     }
 
@@ -469,7 +554,7 @@ final class Rules
      */
     public static function townIsUncontested(array $town): bool
     {
-        return $town['troops'] === 0 && self::townCardCount($town) === 0;
+        return self::townTotalTroops($town) === 0 && self::townCardCount($town) === 0;
     }
 
     public static function legalResolutions(array $towns, string $side): array
@@ -535,7 +620,7 @@ final class Rules
 
         return self::resolutionOutcome(
             self::cardPresence($towns[$townId]),
-            self::troopPresence((int) $towns[$townId]['troops'], $unitPresence),
+            self::townTroopPresence($towns[$townId], $unitPresence),
             $empireWinsTies,
             $locationValue,
         );
@@ -562,7 +647,7 @@ final class Rules
                 $locations++;
             }
             $presence += $side === self::EMPIRE
-                ? self::troopPresence((int) $town['troops'], $unitPresence)
+                ? self::townTroopPresence($town, $unitPresence)
                 : self::cardPresence($town);
         }
         return [$locations, $presence, $side === self::EMPIRE ? 1 : 0];
@@ -748,13 +833,99 @@ final class Rules
             if ($town['resolved'] || count($town['pile']) === 0) {
                 continue;
             }
-            $stationary = (int) $town['troops'] - ($arrivals[$townId] ?? 0);
-            if ($stationary <= 0) {
-                continue;
+            $stationary = max(0, (int) $town['troops'] - ($arrivals[$townId] ?? 0));
+            // The Counterinsurgency Unit never marches (full rules, issue #6),
+            // so every one present is stationary by definition and always
+            // adds its own peek, on top of the base unit's.
+            $own = $stationary * $peekPerTroop + ((int) ($town['troopsCi'] ?? 0)) * self::CI_PEEK;
+            if ($own > 0) {
+                $looks[$townId] = $own;
             }
-            $looks[$townId] = $stationary * $peekPerTroop;
         }
         return $looks;
+    }
+
+    /**
+     * Full rules only (issue #6): extra looks a neighbouring Counterinsurgency
+     * Unit grants, keyed by the town being *read* rather than the one the
+     * unit stands in — add this to peekPlan's own-town counts, not instead of
+     * them. Needs no presence at all in the town it reveals: the whole point
+     * of the unit is seeing ground the Empire does not hold.
+     *
+     * @param array<string, array> $towns  board after generation and movement
+     * @return array<string, int>          town id => extra cards to look at
+     */
+    public static function neighborPeekPlan(array $towns): array
+    {
+        $looks = [];
+        foreach ($towns as $town) {
+            $ci = (int) ($town['troopsCi'] ?? 0);
+            if ($ci <= 0) {
+                continue;
+            }
+            $each = $ci * self::CI_REVEAL_NEIGHBORS;
+            if ($each <= 0) {
+                continue;
+            }
+            foreach ($town['neighbors'] as $neighborId) {
+                $neighbor = $towns[$neighborId];
+                if ($neighbor['resolved'] || count($neighbor['pile']) === 0) {
+                    continue;
+                }
+                $looks[$neighborId] = ($looks[$neighborId] ?? 0) + $each;
+            }
+        }
+        return $looks;
+    }
+
+    /**
+     * Remove troops worth at least `$points` of supply, and report how many
+     * troops and how much presence actually left the board.
+     *
+     * `attritionPlan` works in supply points, which a town with no Shock
+     * Troops cannot tell apart from a head count — this is the one place
+     * points turn back into actual troops, by type, and only here does the
+     * choice of *which* type matter.
+     *
+     * Order is the Counterinsurgency Unit first, then the scenario's base
+     * unit, Shock Troops last: CI carries no presence, so losing it first
+     * costs nothing in the fight and hands the Insurgency nothing either —
+     * strictly the cheapest loss on both counts, not a guess at which is
+     * "worst." Between the other two, the cheaper-to-lose base unit goes
+     * before Shock Troops, so an army sheds its least valuable combat
+     * troops first and keeps its most expensive ones as long as the points
+     * allow.
+     *
+     * @param array{troops: int, troopsCi?: int, troopsShock?: int} $town
+     * @return array{troops: int, troopsCi: int, troopsShock: int, presence: int}
+     *         how many of each type to remove, and the presence that frees
+     */
+    public static function splitLossByType(array $town, int $points, int $unitPresence, int $supplyPerTroop): array
+    {
+        $removed = ['troops' => 0, 'troopsCi' => 0, 'troopsShock' => 0];
+        $presenceLost = 0;
+        $freed = 0;
+
+        $types = [
+            ['field' => 'troopsCi', 'cost' => $supplyPerTroop, 'presence' => self::CI_PRESENCE],
+            ['field' => 'troops', 'cost' => $supplyPerTroop, 'presence' => $unitPresence],
+            ['field' => 'troopsShock', 'cost' => self::SHOCK_SUPPLY_COST, 'presence' => self::SHOCK_PRESENCE],
+        ];
+
+        foreach ($types as $type) {
+            if ($freed >= $points) {
+                break;
+            }
+            $available = (int) ($town[$type['field']] ?? 0);
+            while ($available > 0 && $freed < $points) {
+                $available--;
+                $freed += $type['cost'];
+                $removed[$type['field']]++;
+                $presenceLost += $type['presence'];
+            }
+        }
+
+        return $removed + ['presence' => $presenceLost];
     }
 
     /**

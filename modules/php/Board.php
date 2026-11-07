@@ -87,7 +87,7 @@ final class Board
     public function towns(): array
     {
         $rows = Game::getCollectionFromDB(
-            'SELECT `town_id`, `troops`, `starving`, `resolved`, `winner`,
+            'SELECT `town_id`, `troops`, `troops_ci`, `troops_shock`, `starving`, `resolved`, `winner`,
                     `resolved_card_presence`, `resolved_troop_presence`
              FROM `iaw_town`'
         );
@@ -114,6 +114,8 @@ final class Board
                 'supply' => $definition['supply'],
                 'production' => $definition['production'],
                 'troops' => (int) $row['troops'],
+                'troopsCi' => (int) $row['troops_ci'],
+                'troopsShock' => (int) $row['troops_shock'],
                 'starving' => (int) $row['starving'],
                 'resolved' => (bool) (int) $row['resolved'],
                 'winner' => $row['winner'],
@@ -337,15 +339,33 @@ final class Board
         }
     }
 
-    /** @param array<string, int> $delta town id => signed change in troops */
-    public function adjustTroops(array $delta): void
+    /** The three troop columns a delta may touch — see `adjustTroops`. */
+    private const TROOP_COLUMNS = ['troops', 'troops_ci', 'troops_shock'];
+
+    /**
+     * Change one troop column by a signed amount per town.
+     *
+     * Defaults to the base unit's column; full rules (option 105, issue #6)
+     * calls this a second and third time with `troops_ci` / `troops_shock`
+     * for the two build-only types, which never mix with the base unit in
+     * one call since a build raises exactly one type and a march or a
+     * starvation loss already knows which column it is touching.
+     *
+     * @param array<string, int> $delta town id => signed change
+     */
+    public function adjustTroops(array $delta, string $column = 'troops'): void
     {
+        if (!in_array($column, self::TROOP_COLUMNS, true)) {
+            throw new \RuntimeException("not a troop column: {$column}");
+        }
         foreach ($delta as $townId => $change) {
             if ($change === 0) {
                 continue;
             }
             Game::DbQuery(sprintf(
-                "UPDATE `iaw_town` SET `troops` = `troops` + (%d) WHERE `town_id` = '%s'",
+                "UPDATE `iaw_town` SET `%s` = `%s` + (%d) WHERE `town_id` = '%s'",
+                $column,
+                $column,
                 $change,
                 $townId,
             ));
@@ -389,7 +409,7 @@ final class Board
             $outcome['winner'],
             $outcome['cardPresence'],
             $outcome['troopPresence'],
-            $empireWon ? '' : ', `troops` = 0',
+            $empireWon ? '' : ', `troops` = 0, `troops_ci` = 0, `troops_shock` = 0',
             $townId,
         ));
 

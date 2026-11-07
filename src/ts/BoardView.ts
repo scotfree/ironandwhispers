@@ -30,6 +30,12 @@ const TOWN_HEIGHT = 104;
 const ARROW_OVERLAP = 18;
 
 /**
+ * Full rules only (option 105, issue #6): what a Shock Troop costs its
+ * network, flat, whatever supplyPerTroop is — mirrors Rules::SHOCK_SUPPLY_COST.
+ */
+const SHOCK_SUPPLY_COST = 2;
+
+/**
  * Hide the Empire's supply arithmetic inside the town boxes.
  *
  * A build-time switch rather than a preference: it is here so the fuller
@@ -371,7 +377,7 @@ export class BoardView {
      * linked if the map links them. Computing it here keeps it correct after any
      * notification without anything having to be kept in step.
      */
-    networks(troopsIn: (townId: string) => number = id => this.towns[id].troops): string[][] {
+    networks(troopsIn: (townId: string) => number = id => this.supplyCostOf(id)): string[][] {
         const occupied = new Set(
             Object.keys(this.towns).filter(id => troopsIn(id) > 0),
         );
@@ -417,6 +423,27 @@ export class BoardView {
     }
 
     /**
+     * Full rules only (option 105, issue #6): every troop standing here, of
+     * any type — occupancy, not presence or supply cost, which differ by
+     * type. Mirrors Rules::townTotalTroops / town_total_troops.
+     */
+    totalTroopsOf(townId: string): number {
+        const town = this.towns[townId];
+        return town.troops + (town.troopsCi ?? 0) + (town.troopsShock ?? 0);
+    }
+
+    /**
+     * What this town's whole garrison costs its network, by type. Shock
+     * Troops cost double, flat, whatever supplyPerTroop is — mirrors
+     * Rules::townSupplyCost / town_supply_cost.
+     */
+    supplyCostOf(townId: string): number {
+        const town = this.towns[townId];
+        return (town.troops + (town.troopsCi ?? 0)) * this.scenario.supplyPerTroop
+            + (town.troopsShock ?? 0) * SHOCK_SUPPLY_COST;
+    }
+
+    /**
      * How many troops the army holding this town is under notice to lose: the
      * sum of the server's forecast over the whole network. The forecast names
      * towns, but only its total means anything once the Empire chooses where
@@ -454,16 +481,18 @@ export class BoardView {
      */
     networkOf(
         townId: string,
-        troopsIn: (id: string) => number = id => this.towns[id].troops,
+        troopsIn: (id: string) => number = id => this.supplyCostOf(id),
     ): { towns: string[]; ceiling: number; troops: number } | null {
         const network = this.networks(troopsIn).find(n => n.includes(townId));
         if (!network) {
             return null;
         }
-        const supply = network.reduce((total, id) => total + this.supplyOf(id), 0);
         return {
             towns: network,
-            ceiling: Math.floor(supply / this.scenario.supplyPerTroop),
+            // Raw supply, not divided: troopsIn is already in supply points
+            // (Rules::ceiling dropped the division once Shock Troops could
+            // cost more than one point each — see BoardView.supplyCostOf).
+            ceiling: network.reduce((total, id) => total + this.supplyOf(id), 0),
             troops: network.reduce((total, id) => total + troopsIn(id), 0),
         };
     }
@@ -477,12 +506,12 @@ export class BoardView {
      * the end of the next one, so the two say very different things to a player.
      */
     overSupplied(
-        troopsIn: (id: string) => number = id => this.towns[id].troops,
+        troopsIn: (id: string) => number = id => this.supplyCostOf(id),
     ): { towns: string[]; over: number; warned: boolean }[] {
         return this.networks(troopsIn)
             .map(network => {
-                const supply = network.reduce((total, id) => total + this.supplyOf(id), 0);
-                const ceiling = Math.floor(supply / this.scenario.supplyPerTroop);
+                // Raw supply, not divided — see networkOf.
+                const ceiling = network.reduce((total, id) => total + this.supplyOf(id), 0);
                 return {
                     towns: network,
                     over: network.reduce((total, id) => total + troopsIn(id), 0) - ceiling,
@@ -520,7 +549,8 @@ export class BoardView {
     private updateRoads(): void {
         this.scenario.edges.forEach(([a, b]) => {
             const line = document.getElementById(this.edgeElementId(a, b));
-            const live = this.towns[a]?.troops > 0 && this.towns[b]?.troops > 0;
+            const live = this.towns[a] && this.towns[b]
+                && this.totalTroopsOf(a) > 0 && this.totalTroopsOf(b) > 0;
             line?.classList.toggle('supplied', live);
         });
     }
@@ -595,7 +625,9 @@ export class BoardView {
     private troopsHtml(townId: string, town: TownView): string {
         const delta = this.troopDelta[townId] ?? 0;
         const built = this.buildDelta[townId] ?? 0;
-        if (town.troops === 0 && delta === 0 && built === 0) {
+        const ci = town.troopsCi ?? 0;
+        const shock = town.troopsShock ?? 0;
+        if (town.troops === 0 && ci === 0 && shock === 0 && delta === 0 && built === 0) {
             return '';
         }
 
@@ -627,7 +659,31 @@ export class BoardView {
         return `<div class="iaw-troops clickable${compact}${underNotice ? ' starving' : ''}"
                  data-troop="${townId}"
                  >${pawn}<span class="iaw-garrison-row">${this.garrisonHtml(town.troops)}<span
-                 class="iaw-troop-marks">${change}${raising}${doomed}</span></span></div>`;
+                 class="iaw-troop-marks">${change}${raising}${doomed}</span></span>${
+                 this.fullRulesBadgesHtml(ci, shock)}</div>`;
+    }
+
+    /**
+     * Full rules only (option 105, issue #6): the build popup's other two
+     * types, as small badges of their own rather than folded into the base
+     * garrison's count and presence pip above — a Counterinsurgency Unit
+     * carries no presence at all, so folding it in would read as zero and
+     * hide that it is standing there at all.
+     */
+    private fullRulesBadgesHtml(ci: number, shock: number): string {
+        if (ci === 0 && shock === 0) {
+            return '';
+        }
+        const ciBadge = ci > 0
+            ? `<span class="iaw-ci-badge" title="${_('Counterinsurgency Units here — no presence, but they read extra cards')}"
+                >${_('CI')}&nbsp;${ci}</span>`
+            : '';
+        const shockPresence = shock * (this.scenario.fullRulesUnits.shock?.presence ?? 0);
+        const shockBadge = shock > 0
+            ? `<span class="iaw-shock-badge" title="${_('Shock Troops here — double presence, double supply cost')}"
+                >${_('Shock')}&nbsp;${shock}&nbsp;${presenceHtml(shockPresence)}</span>`
+            : '';
+        return `<span class="iaw-fullrules-badges">${ciBadge}${shockBadge}</span>`;
     }
 
     /**
@@ -781,22 +837,24 @@ export class BoardView {
      */
     armies(): ArmyView[] {
         return this.networks().map(towns => {
-            const most = Math.max(...towns.map(id => this.towns[id].troops));
-            const tied = towns.filter(id => this.towns[id].troops === most).sort();
+            const most = Math.max(...towns.map(id => this.totalTroopsOf(id)));
+            const tied = towns.filter(id => this.totalTroopsOf(id) === most).sort();
             const seed = [...towns].sort().join('|');
             let hash = 0;
             for (let i = 0; i < seed.length; i++) {
                 hash = (hash * 31 + seed.charCodeAt(i)) | 0;
             }
 
-            const troops = towns.reduce((total, id) => total + this.towns[id].troops, 0);
+            const troops = towns.reduce((total, id) => total + this.totalTroopsOf(id), 0);
             const supply = towns.reduce((total, id) => total + this.supplyOf(id), 0);
 
             return {
                 name: this.scenario.towns[tied[Math.abs(hash) % tied.length]].label,
                 towns,
                 troops,
-                supplyUsed: troops * this.scenario.supplyPerTroop,
+                // Full rules only: Shock Troops cost more than their head
+                // count, so this is the real cost, not troops * supplyPerTroop.
+                supplyUsed: towns.reduce((total, id) => total + this.supplyCostOf(id), 0),
                 supplyAvailable: supply,
                 supplyTowns: towns.filter(id => this.supplyOf(id) > 0).length,
                 starving: towns.reduce((total, id) => total + (this.towns[id].starving ?? 0), 0),

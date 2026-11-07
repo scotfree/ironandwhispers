@@ -597,6 +597,89 @@ goes through, stacked. `tests/test_arrange_deck.php` covers who it applies to, w
 the deck and for how long, and that a bad order (not exactly the deck's own cards) is
 rejected.
 
+**Full rules (still option 105) now also adds two Empire unit types, chosen at the build
+popup** (2026-10-26, issue #6). Displayed as "Full rules" rather than "Advanced rules" from
+here on — a bucket for one relaxation and one human-only unit choice no longer reads as
+"advanced" — but the option id, `Game::OPT_ADVANCED_RULES`/`ADVANCED_RULES_ON` and
+`advancedRules()` all stay exactly as they were, on the same display-vs-identifier precedent
+as Rebels/Insurgency. Off, building still raises the base unit with no further choice, as
+it always has.
+
+The **Counterinsurgency Unit** adds no presence at all, but reads two cards in its own town
+(its own peek, plus the base unit's own-town peek if any troops also stood still there) and
+one card in *every* neighbouring location, needing no presence there at all — the whole
+point of the unit is seeing ground the Empire does not hold. The **Shock Troops** add double
+presence at resolution, at double the supply cost. Both are **build-only and never march** —
+a deliberate v1 scope cut, not an oversight: `Town.troops_ci` / `Town.troops_shock` in
+`sim/engine.py` and `troopsCi`/`troopsShock` in the PHP and the client are separate columns
+from `troops`, untouched by `planMoves`/`Rules::planMoves`. Losing a town clears all three
+together (Decision 3 generalises for free); nothing else references the other two.
+
+**The port touched every shared formula, not just resolution**, because a troop that can cost
+more than one point of supply, or carry other than the unit's own presence, broke the
+assumption baked into `ceiling`, `troops_in`, `empire_holds`, `empire_is_eliminated` and
+`peek_plan` that a troop count *was* the thing being measured. `town_troop_presence` and
+`town_supply_cost` (ported as `Rules::townTroopPresence`/`townSupplyCost`) are the one place
+each formula now lives; every caller that used to read `town.troops` directly reads one of
+these two instead. `ceiling` dropped its division by `supply_per_troop` — it had been doing
+two jobs, dividing a floor, now `troops_in`/`troopsIn` does the one division per type that
+is still needed, in the one place a type's cost actually varies. Numerically identical to
+before whenever `troops_ci`/`troops_shock` are 0, which is every game before full rules and
+every bot-controlled army always — no bot ever builds either type, so no bot code changed.
+
+**Attrition starves the Counterinsurgency Unit first, the base unit second, and Shock Troops
+last** (`_starve_troops` / `Rules::splitLossByType`), because `attrition_plan` now works in
+supply points rather than a head count — a town with no Shock Troops cannot tell the two
+apart, which is exactly why every pre-existing scenario measures unchanged. CI carries no
+presence and costs the Insurgency nothing to take, so it is strictly the cheapest loss on
+both axes, not a guessed "worst"; Shock Troops are the most expensive to replace and so are
+protected longest. `validateDisband`/`validate_disband` is now denominated in points too —
+the error text says "points of supply" rather than "troops", since a disband naming a
+head count for a Shock-garrisoned town would be short of the real shortfall.
+
+**The client's own supply arithmetic needed the same generalisation**, not just new pixels:
+`BoardView.networks()`/`networkOf()`/`overSupplied()` used to test and sum raw
+`town.troops`, so a town held only by Shock Troops would have read as unoccupied — roads
+not lit, networks not joined, ceilings silently wrong. `BoardView.totalTroopsOf` (occupancy,
+mirrors `townTotalTroops`) and `supplyCostOf` (mirrors `townSupplyCost`, Shock Troops flat
+double whatever `supplyPerTroop` is) are now the one place each is computed, and `ceiling`
+is the raw supply total rather than divided, matching `Rules::ceiling`'s own change.
+
+**The build popup only appears under full rules.** `EmpireTurn::getArgs` sends `fullRules`
+so the client knows whether to ask; off, clicking a buildable town still just raises the
+base unit in one click, exactly as before. On, it opens a rebuilt-every-time `popindialog`
+(the same reason `BoardView.showPile` rebuilds its own) naming all three choices with their
+real stats pulled from `data/units.json` via the new `Scenario::$fullRulesUnits` /
+`ScenarioView.fullRulesUnits` — never hand-copied into the client, so the numbers cannot
+drift from the file that actually governs them. The three share one capacity
+(`Rules::validateProduction` on the combined dict); building past it with two different
+types staged is refused exactly as building two of one type would be.
+
+**On the board, a Counterinsurgency Unit or a Shock Troop is drawn as a small badge under
+the base garrison**, not folded into its count-and-presence pip: CI's presence is always 0,
+so folding it in would read as zero and hide that anything is standing there at all. This is
+the "minimal display" cut for this pass — the badges show the *committed* board, not a staged
+preview; a staged CI/Shock build is visible only as the existing purple pulsing build count
+(now the sum of all three types) and in the turn-summary panel's text list, not as its own
+preview badge, and the "what the opponent did last turn" panel does not yet break the two
+out by name either. Revisit if real play finds either confusing.
+
+**Tested the same way the port always is**: `sim/test_full_rules.py` (22 cases) is the
+specification, `tests/test_full_rules.php` mirrors it case for case — pure `Rules::` calls
+for everything that does not need a database, and two short games through `newGame()` for
+the two things that do (a loss clearing all three columns, and a build landing in the right
+column with the right notification). `Rules.php`'s CI/Shock stats are hardcoded private
+constants rather than read from `data/units.json` at runtime — `Rules.php` stays free of the
+framework (no file reads) — so `tests/test_full_rules.php`'s header says in so many words
+that keeping them in sync with the JSON is a human's job, not a test's yet.
+
+**Not done, deliberately, for this pass**: the exact Shock Troops supply cost (2, double the
+base) and CI's own-peek bonus and reveal-neighbours count (2 and 1) are this author's
+reading of a garbled voice request, not confirmed numbers — revisit with the person who
+asked for the feature before calling them balanced. No bot builds either type, so there is
+nothing to re-tune in `sim/bots.py` from this change. A zombie Empire (MonoLoc) never builds
+them either, for the same reason.
+
 **Deferred work lives in GitHub Issues**, not in this file:
 https://github.com/scotfree/ironandwhisper/issues, labelled `design`, `balance`, `ui`,
 `bots`, `playtest`, `deferred`. This document and `design.md` record decisions and

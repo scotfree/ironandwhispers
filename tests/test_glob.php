@@ -199,8 +199,8 @@ function test_glob_never_leaves_a_network_it_cannot_feed(): void
     }
     foreach (Rules::components($towns) as $component) {
         assertTrue(
-            Rules::troopsIn($towns, $component)
-                <= Rules::ceiling($towns, $component, $scenario->supplyPerTroop),
+            Rules::troopsIn($towns, $component, $scenario->supplyPerTroop)
+                <= Rules::ceiling($towns, $component),
             'left ' . implode(',', $component) . ' over its ceiling',
         );
     }

@@ -91,6 +91,11 @@ final class View
             $view[$townId] = [
                 'id' => $townId,
                 'troops' => $town['troops'],
+                // Full rules only (option 105, issue #6): the two build-only
+                // unit types. Public exactly like 'troops' — the Empire's
+                // garrison is visible to both sides whatever it is made of.
+                'troopsCi' => $town['troopsCi'],
+                'troopsShock' => $town['troopsShock'],
                 // Public: the networks are computed from the board by anyone
                 // who can see it, so what a network cannot feed is public too.
                 // The Insurgency being able to see that the Empire has
@@ -176,6 +181,7 @@ final class View
             'towns' => $towns,
             'edges' => $scenario->edges,
             'unit' => $scenario->unit,
+            'fullRulesUnits' => $scenario->fullRulesUnits,
             'cardTypes' => $scenario->cardTypes,
             'deck' => $scenario->deck,
             'handSize' => $scenario->handSize,

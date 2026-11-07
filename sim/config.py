@@ -25,6 +25,17 @@ class Unit:
     movement: int
     peek: int
 
+    # What one of these costs the network per troop standing, overriding the
+    # scenario's supply_per_troop for this type alone. None means "use the
+    # scenario's" — every unit before full rules (issue #6) added Shock
+    # Troops, the first to cost something different.
+    supply_cost: int | None = None
+
+    # Extra peeks this unit grants in each neighbouring town, on top of its
+    # own peek in the town it stands in — the Counterinsurgency Unit's whole
+    # reason to exist (issue #6, full rules). 0 for every other unit.
+    reveal_neighbors: int = 0
+
 
 @dataclass(frozen=True)
 class CardType:
@@ -104,6 +115,11 @@ class Scenario:
     label: str
     map: GameMap
     unit: Unit
+    # The full registry (data/units.json), not just the scenario's own `unit`
+    # — full rules (issue #6) builds the Counterinsurgency Unit and Shock
+    # Troops alongside it, looked up here by id rather than by a second
+    # scenario field, since every scenario offers the same two.
+    units: dict[str, Unit]
     card_types: dict[str, CardType]
     hand_size: int
     deck: dict[str, int]
@@ -221,7 +237,9 @@ def load_units() -> dict[str, Unit]:
     raw = _load_json(DATA_DIR / "units.json")
     return {
         uid: Unit(id=uid, label=u["label"], presence=u["presence"],
-                  movement=u["movement"], peek=u["peek"])
+                  movement=u["movement"], peek=u["peek"],
+                  supply_cost=u.get("supply_cost"),
+                  reveal_neighbors=u.get("reveal_neighbors", 0))
         for uid, u in raw.items()
     }
 
@@ -269,6 +287,7 @@ def load_scenario(scenario_id: str, **overrides) -> Scenario:
         label=raw["label"],
         map=game_map,
         unit=units[raw["unit"]],
+        units=units,
         card_types=card_types,
         hand_size=raw["hand_size"],
         deck=dict(raw["deck"]),

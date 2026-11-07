@@ -606,12 +606,22 @@ export class Game {
     async notif_empireMoved(args: {
         player_id: number;
         troops: Record<string, number>;
+        troopsCi: Record<string, number>;
+        troopsShock: Record<string, number>;
         produced: Record<string, number>;
+        producedCi: Record<string, number>;
+        producedShock: Record<string, number>;
         moves: StagedMove[];
     }) {
         Object.entries(args.troops).forEach(([townId, troops]) => {
             this.board.getTown(townId).troops = troops;
             this.board.updateTown(townId);
+        });
+        Object.entries(args.troopsCi ?? {}).forEach(([townId, troops]) => {
+            this.board.getTown(townId).troopsCi = troops;
+        });
+        Object.entries(args.troopsShock ?? {}).forEach(([townId, troops]) => {
+            this.board.getTown(townId).troopsShock = troops;
         });
 
         this.recordLastTurn('empire', {
@@ -722,6 +732,13 @@ export class Game {
         // a town it wins, so zeroing troops here made them vanish until the
         // next turn's notification put them back.
         town.troops -= args.troopsLost;
+        // Full rules only (option 105, issue #6): a loss clears all three
+        // troop columns outright, not just the base unit — Board::markResolved
+        // mirrors this with `troops_ci = 0, troops_shock = 0` in the same query.
+        if (args.winner !== 'empire') {
+            town.troopsCi = 0;
+            town.troopsShock = 0;
+        }
         town.pile = [];
         town.pileSize = 0;
         // Captured cards are taken off the board; cards the Insurgency held
@@ -763,7 +780,13 @@ export class Game {
      * Anyone planning a resolution in that window was reading a garrison that
      * was not there.
      */
-    async notif_troopsStarved(args: { troops: Record<string, number>; points: number; player_id: number }) {
+    async notif_troopsStarved(args: {
+        troops: Record<string, number>;
+        troopsCi: Record<string, number>;
+        troopsShock: Record<string, number>;
+        points: number;
+        player_id: number;
+    }) {
         // Starved troops score for the rebels. A person's counter moves by
         // itself; the bot's is ours to move, and this handler used to forget,
         // so a solo Empire saw the rebels' score stand still when it starved.
@@ -774,6 +797,12 @@ export class Game {
         Object.entries(args.troops ?? {}).forEach(([townId, troops]) => {
             this.board.getTown(townId).troops = troops;
             this.board.updateTown(townId);
+        });
+        Object.entries(args.troopsCi ?? {}).forEach(([townId, troops]) => {
+            this.board.getTown(townId).troopsCi = troops;
+        });
+        Object.entries(args.troopsShock ?? {}).forEach(([townId, troops]) => {
+            this.board.getTown(townId).troopsShock = troops;
         });
     }
 

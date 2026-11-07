@@ -53,6 +53,11 @@ class EmpireTurn extends GameState
             'networks' => self::networkView($towns, $this->game->scenario),
             'offeredEnd' => $this->game->hasOfferedEnd(Rules::EMPIRE),
             'opponentOfferedEnd' => $this->game->hasOfferedEnd(Rules::INSURGENCY),
+            // Full rules only (option 105, issue #6): whether the build popup
+            // offers the Counterinsurgency Unit and Shock Troops as well as
+            // the base unit. Off, the client never shows the popup at all —
+            // clicking to build just raises the base unit, as it always did.
+            'fullRules' => $this->game->advancedRules(),
         ];
     }
 
@@ -61,6 +66,10 @@ class EmpireTurn extends GameState
      *
      * The work is in Game::applyEmpireTurn, so that a bot takes its turn
      * through the same code and the same validation as a person.
+     *
+     * `$produceCi` and `$produceShock` are full rules only (option 105, issue
+     * #6) — the build popup's other two buttons. A table without full rules
+     * on never sends them; they default to empty either way.
      *
      * @param array<int, array{from: string, to: string, count: int}> $moves
      */
@@ -71,12 +80,23 @@ class EmpireTurn extends GameState
         #[JsonParam] array $disband,
         string $offerEnd,
         int $activePlayerId,
+        #[JsonParam] array $produceCi = [],
+        #[JsonParam] array $produceShock = [],
     ) {
         // Carried with the turn rather than sent as an action of its own, so
         // the offer cannot be made or withdrawn out of turn. BGA action
         // parameters travel as strings, hence the comparison rather than a bool.
         $this->game->setOfferEnd(Rules::EMPIRE, $offerEnd === '1', $activePlayerId);
-        $this->game->applyEmpireTurn($produce, $moves, null, $disband, $activePlayerId, chooseLosses: true);
+        $this->game->applyEmpireTurn(
+            $produce,
+            $moves,
+            null,
+            $disband,
+            $activePlayerId,
+            chooseLosses: true,
+            produceCi: $produceCi,
+            produceShock: $produceShock,
+        );
 
         return NextTurn::class;
     }
@@ -114,8 +134,8 @@ class EmpireTurn extends GameState
         return array_map(
             fn(array $component) => [
                 'towns' => $component,
-                'ceiling' => Rules::ceiling($towns, $component, $scenario->supplyPerTroop),
-                'troops' => Rules::troopsIn($towns, $component),
+                'ceiling' => Rules::ceiling($towns, $component),
+                'troops' => Rules::troopsIn($towns, $component, $scenario->supplyPerTroop),
             ],
             Rules::components($towns),
         );

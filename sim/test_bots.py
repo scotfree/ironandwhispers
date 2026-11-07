@@ -25,6 +25,8 @@ from .bots import (
 )
 from .config import CardType, GameMap, Scenario, TownDef, Unit
 from .engine import (
+    CI_UNIT,
+    SHOCK_UNIT,
     Card,
     Side,
     apply_empire_turn,
@@ -40,6 +42,12 @@ from .engine import (
 from .config import load_scenario
 
 FOOT = Unit(id="foot", label="Foot", presence=1, movement=1, peek=1)
+# Full rules (issue #6): present in every test scenario's unit registry, as
+# they are in every real one — `town_troop_presence` and friends look these
+# up unconditionally, even in a game that never builds either.
+CI = Unit(id=CI_UNIT, label="Counterinsurgency Unit", presence=0, movement=1, peek=2,
+          reveal_neighbors=1)
+SHOCK = Unit(id=SHOCK_UNIT, label="Shock Troops", presence=2, movement=1, peek=1, supply_cost=2)
 CARD_TYPES = {
     "influence0": CardType(id="influence0", label="Agent +0", presence=0),
     "influence1": CardType(id="influence1", label="Agent +1", presence=1),
@@ -65,6 +73,7 @@ def fan_map(supply: int = 10, producers: tuple[str, ...] = ("a",)) -> GameMap:
 def scenario(**overrides) -> Scenario:
     fields = dict(
         id="test", label="Test", map=fan_map(), unit=FOOT,
+        units={FOOT.id: FOOT, CI.id: CI, SHOCK.id: SHOCK},
         card_types=CARD_TYPES, hand_size=2,
         deck={"influence1": 8, "influence0": 8},
         supply_per_troop=1, production_cost=1,

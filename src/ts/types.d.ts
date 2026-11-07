@@ -37,6 +37,9 @@ interface LastTurn {
 interface TownView {
     id: string;
     troops: number;
+    /** Full rules only (option 105, issue #6): the build popup's other two types. */
+    troopsCi: number;
+    troopsShock: number;
     /**
      * How many of this town's troops will starve at the end of the Empire's
      * next turn if its network is still short. A warning, not a reservation.
@@ -74,6 +77,16 @@ interface ScenarioView {
     towns: Record<string, TownDef>;
     edges: [string, string][];
     unit: { id: string; label: string; presence: number; movement: number; peek: number };
+    /**
+     * Full rules only (option 105, issue #6): static stats for the build
+     * popup's other two buttons, keyed 'counterinsurgency' / 'shock'. Empty
+     * unless the scenario's data/units.json carries both — it always does,
+     * but the client does not assume it.
+     */
+    fullRulesUnits: Record<string, {
+        id: string; label: string; movement: number; peek: number; presence: number;
+        reveal_neighbors?: number; supply_cost?: number;
+    }>;
     cardTypes: Record<string, { id: string; label: string; presence: number }>;
     deck: Record<string, number>;
     handSize: number;
@@ -151,6 +164,12 @@ interface EmpireTurnArgs {
     /** Whether this side's standing offer to end the game is up. */
     offeredEnd: boolean;
     opponentOfferedEnd: boolean;
+    /**
+     * Full rules only (option 105, issue #6): whether the build popup offers
+     * the Counterinsurgency Unit and Shock Troops as well as the base unit.
+     * Off, clicking a buildable town just raises the base unit, as it always did.
+     */
+    fullRules: boolean;
 }
 
 /** One of the Empire's supply networks, as the army list shows it. */

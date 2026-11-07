@@ -47,6 +47,20 @@ final class Material
                 'peek' => 0,
                 'presence' => 1,
             ],
+            'counterinsurgency' => [
+                'label' => 'Counterinsurgency Unit',
+                'movement' => 1,
+                'peek' => 2,
+                'presence' => 0,
+                'reveal_neighbors' => 1,
+            ],
+            'shock' => [
+                'label' => 'Shock Troops',
+                'movement' => 1,
+                'peek' => 1,
+                'presence' => 2,
+                'supply_cost' => 2,
+            ],
         ],
         'maps/grid12.json' => [
             'id' => 'grid12',

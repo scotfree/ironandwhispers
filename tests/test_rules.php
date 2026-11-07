@@ -239,7 +239,7 @@ function test_the_ceiling_is_the_networks_summed_supply(): void
         'b' => ['troops' => 1, 'supply' => 3],
     ]);
 
-    assertSame(5, Rules::ceiling($towns, ['a', 'b'], 1));
+    assertSame(5, Rules::ceiling($towns, ['a', 'b']));
     assertSame(2, Rules::troopsIn($towns, ['a', 'b']));
     assertSame(3, Rules::headroom($towns, 'a', 1), 'five supply, two troops standing');
 }
@@ -253,7 +253,7 @@ function test_a_resolved_town_still_carries_supply(): void
     ]);
 
     assertSame([['a', 'b']], Rules::components($towns));
-    assertSame(4, Rules::ceiling($towns, ['a', 'b'], 1));
+    assertSame(4, Rules::ceiling($towns, ['a', 'b']));
 }
 
 function test_building_needs_the_empire_to_hold_the_town(): void
@@ -421,12 +421,12 @@ function test_severing_a_line_leaves_two_smaller_ceilings(): void
 {
     $held = ['troops' => 1, 'supply' => 1];
     $towns = rulesBoard(['a' => $held, 'b' => $held, 'c' => $held]);
-    assertSame(3, Rules::ceiling($towns, Rules::componentOf($towns, 'a'), 1));
+    assertSame(3, Rules::ceiling($towns, Rules::componentOf($towns, 'a')));
 
     // The Insurgency takes the middle town: one network becomes two.
     $cut = rulesBoard(['a' => $held, 'c' => $held]);
-    assertSame(1, Rules::ceiling($cut, Rules::componentOf($cut, 'a'), 1));
-    assertSame(1, Rules::ceiling($cut, Rules::componentOf($cut, 'c'), 1));
+    assertSame(1, Rules::ceiling($cut, Rules::componentOf($cut, 'a')));
+    assertSame(1, Rules::ceiling($cut, Rules::componentOf($cut, 'c')));
 }
 
 // -- movement ---------------------------------------------------------------
@@ -566,14 +566,14 @@ function test_a_town_the_rebels_take_never_supplies_the_empire_again(): void
         'a' => ['troops' => 1, 'supply' => 2, 'production' => 1],
         'b' => ['troops' => 1, 'supply' => 2, 'production' => 1],
     ]);
-    assertSame(4, Rules::ceiling($towns, ['a', 'b'], 1));
+    assertSame(4, Rules::ceiling($towns, ['a', 'b']));
     assertSame(1, Rules::productionCapacity($towns, 'b', 1));
 
     $towns['b']['resolved'] = true;
     $towns['b']['winner'] = Rules::INSURGENCY;
 
     assertSame([['a', 'b']], Rules::components($towns), 'still a road, still garrisoned');
-    assertSame(2, Rules::ceiling($towns, ['a', 'b'], 1), 'but it feeds nothing');
+    assertSame(2, Rules::ceiling($towns, ['a', 'b']), 'but it feeds nothing');
     assertSame(0, Rules::productionCapacity($towns, 'b', 1), 'and builds nothing');
     assertSame(['a'], Rules::productionSites($towns, 1));
 }
@@ -585,5 +585,5 @@ function test_a_town_the_empire_wins_keeps_supplying(): void
         'b' => ['troops' => 1, 'supply' => 2, 'resolved' => true, 'winner' => Rules::EMPIRE],
     ]);
 
-    assertSame(4, Rules::ceiling($towns, ['a', 'b'], 1), 'holding it is the reward');
+    assertSame(4, Rules::ceiling($towns, ['a', 'b']), 'holding it is the reward');
 }

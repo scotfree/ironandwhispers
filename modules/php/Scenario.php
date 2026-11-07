@@ -37,6 +37,7 @@ final class Scenario
         public readonly array $towns,
         public readonly array $edges,
         public readonly array $unit,
+        public readonly array $fullRulesUnits,
         public readonly array $cardTypes,
         public readonly int $handSize,
         public readonly array $deck,
@@ -101,6 +102,17 @@ final class Scenario
         }
         $unit = $units[$unitId] + ['id' => $unitId];
 
+        // Full rules only (option 105, issue #6): static stats for the build
+        // popup's other two buttons. Public to both sides, the same as the
+        // base unit's own stats above — what a Counterinsurgency Unit or a
+        // Shock Troop does is a rule, not hidden information.
+        $fullRulesUnits = [];
+        foreach ([Rules::CI_UNIT, Rules::SHOCK_UNIT] as $fullRulesUnitId) {
+            if (isset($units[$fullRulesUnitId])) {
+                $fullRulesUnits[$fullRulesUnitId] = $units[$fullRulesUnitId] + ['id' => $fullRulesUnitId];
+            }
+        }
+
         $cardTypes = [];
         foreach ($cards as $typeId => $card) {
             $cardTypes[$typeId] = $card + ['id' => $typeId];
@@ -125,6 +137,7 @@ final class Scenario
             towns: $towns,
             edges: $edges,
             unit: $unit,
+            fullRulesUnits: $fullRulesUnits,
             cardTypes: $cardTypes,
             handSize: (int) $scenario['hand_size'],
             deck: array_map('intval', $scenario['deck']),

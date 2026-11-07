@@ -60,6 +60,11 @@ const TOWN_HEIGHT = 104;
 /** How far a march arrow reaches inside the box of the town it arrives in. */
 const ARROW_OVERLAP = 18;
 /**
+ * Full rules only (option 105, issue #6): what a Shock Troop costs its
+ * network, flat, whatever supplyPerTroop is — mirrors Rules::SHOCK_SUPPLY_COST.
+ */
+const SHOCK_SUPPLY_COST = 2;
+/**
  * Hide the Empire's supply arithmetic inside the town boxes.
  *
  * A build-time switch rather than a preference: it is here so the fuller
@@ -356,7 +361,7 @@ class BoardView {
      * linked if the map links them. Computing it here keeps it correct after any
      * notification without anything having to be kept in step.
      */
-    networks(troopsIn = id => this.towns[id].troops) {
+    networks(troopsIn = id => this.supplyCostOf(id)) {
         const occupied = new Set(Object.keys(this.towns).filter(id => troopsIn(id) > 0));
         const seen = new Set();
         const found = [];
@@ -394,6 +399,25 @@ class BoardView {
         return this.scenario.towns[townId].supply;
     }
     /**
+     * Full rules only (option 105, issue #6): every troop standing here, of
+     * any type — occupancy, not presence or supply cost, which differ by
+     * type. Mirrors Rules::townTotalTroops / town_total_troops.
+     */
+    totalTroopsOf(townId) {
+        const town = this.towns[townId];
+        return town.troops + (town.troopsCi ?? 0) + (town.troopsShock ?? 0);
+    }
+    /**
+     * What this town's whole garrison costs its network, by type. Shock
+     * Troops cost double, flat, whatever supplyPerTroop is — mirrors
+     * Rules::townSupplyCost / town_supply_cost.
+     */
+    supplyCostOf(townId) {
+        const town = this.towns[townId];
+        return (town.troops + (town.troopsCi ?? 0)) * this.scenario.supplyPerTroop
+            + (town.troopsShock ?? 0) * SHOCK_SUPPLY_COST;
+    }
+    /**
      * How many troops the army holding this town is under notice to lose: the
      * sum of the server's forecast over the whole network. The forecast names
      * towns, but only its total means anything once the Empire chooses where
@@ -426,15 +450,17 @@ class BoardView {
      * *will* stand rather than as it stands: massing changes which towns are
      * occupied, so it changes the networks themselves, not just their load.
      */
-    networkOf(townId, troopsIn = id => this.towns[id].troops) {
+    networkOf(townId, troopsIn = id => this.supplyCostOf(id)) {
         const network = this.networks(troopsIn).find(n => n.includes(townId));
         if (!network) {
             return null;
         }
-        const supply = network.reduce((total, id) => total + this.supplyOf(id), 0);
         return {
             towns: network,
-            ceiling: Math.floor(supply / this.scenario.supplyPerTroop),
+            // Raw supply, not divided: troopsIn is already in supply points
+            // (Rules::ceiling dropped the division once Shock Troops could
+            // cost more than one point each — see BoardView.supplyCostOf).
+            ceiling: network.reduce((total, id) => total + this.supplyOf(id), 0),
             troops: network.reduce((total, id) => total + troopsIn(id), 0),
         };
     }
@@ -446,11 +472,11 @@ class BoardView {
      * has only just gone short is marked at the end of this turn and starves at
      * the end of the next one, so the two say very different things to a player.
      */
-    overSupplied(troopsIn = id => this.towns[id].troops) {
+    overSupplied(troopsIn = id => this.supplyCostOf(id)) {
         return this.networks(troopsIn)
             .map(network => {
-            const supply = network.reduce((total, id) => total + this.supplyOf(id), 0);
-            const ceiling = Math.floor(supply / this.scenario.supplyPerTroop);
+            // Raw supply, not divided — see networkOf.
+            const ceiling = network.reduce((total, id) => total + this.supplyOf(id), 0);
             return {
                 towns: network,
                 over: network.reduce((total, id) => total + troopsIn(id), 0) - ceiling,
@@ -482,7 +508,8 @@ class BoardView {
     updateRoads() {
         this.scenario.edges.forEach(([a, b]) => {
             const line = document.getElementById(this.edgeElementId(a, b));
-            const live = this.towns[a]?.troops > 0 && this.towns[b]?.troops > 0;
+            const live = this.towns[a] && this.towns[b]
+                && this.totalTroopsOf(a) > 0 && this.totalTroopsOf(b) > 0;
             line?.classList.toggle('supplied', live);
         });
     }
@@ -546,7 +573,9 @@ class BoardView {
     troopsHtml(townId, town) {
         const delta = this.troopDelta[townId] ?? 0;
         const built = this.buildDelta[townId] ?? 0;
-        if (town.troops === 0 && delta === 0 && built === 0) {
+        const ci = town.troopsCi ?? 0;
+        const shock = town.troopsShock ?? 0;
+        if (town.troops === 0 && ci === 0 && shock === 0 && delta === 0 && built === 0) {
             return '';
         }
         const pawn = this.frames
@@ -575,7 +604,29 @@ class BoardView {
         return `<div class="iaw-troops clickable${compact}${underNotice ? ' starving' : ''}"
                  data-troop="${townId}"
                  >${pawn}<span class="iaw-garrison-row">${this.garrisonHtml(town.troops)}<span
-                 class="iaw-troop-marks">${change}${raising}${doomed}</span></span></div>`;
+                 class="iaw-troop-marks">${change}${raising}${doomed}</span></span>${this.fullRulesBadgesHtml(ci, shock)}</div>`;
+    }
+    /**
+     * Full rules only (option 105, issue #6): the build popup's other two
+     * types, as small badges of their own rather than folded into the base
+     * garrison's count and presence pip above — a Counterinsurgency Unit
+     * carries no presence at all, so folding it in would read as zero and
+     * hide that it is standing there at all.
+     */
+    fullRulesBadgesHtml(ci, shock) {
+        if (ci === 0 && shock === 0) {
+            return '';
+        }
+        const ciBadge = ci > 0
+            ? `<span class="iaw-ci-badge" title="${_('Counterinsurgency Units here — no presence, but they read extra cards')}"
+                >${_('CI')}&nbsp;${ci}</span>`
+            : '';
+        const shockPresence = shock * (this.scenario.fullRulesUnits.shock?.presence ?? 0);
+        const shockBadge = shock > 0
+            ? `<span class="iaw-shock-badge" title="${_('Shock Troops here — double presence, double supply cost')}"
+                >${_('Shock')}&nbsp;${shock}&nbsp;${presenceHtml(shockPresence)}</span>`
+            : '';
+        return `<span class="iaw-fullrules-badges">${ciBadge}${shockBadge}</span>`;
     }
     /**
      * The garrison, as the number that decides the town.
@@ -710,20 +761,22 @@ class BoardView {
      */
     armies() {
         return this.networks().map(towns => {
-            const most = Math.max(...towns.map(id => this.towns[id].troops));
-            const tied = towns.filter(id => this.towns[id].troops === most).sort();
+            const most = Math.max(...towns.map(id => this.totalTroopsOf(id)));
+            const tied = towns.filter(id => this.totalTroopsOf(id) === most).sort();
             const seed = [...towns].sort().join('|');
             let hash = 0;
             for (let i = 0; i < seed.length; i++) {
                 hash = (hash * 31 + seed.charCodeAt(i)) | 0;
             }
-            const troops = towns.reduce((total, id) => total + this.towns[id].troops, 0);
+            const troops = towns.reduce((total, id) => total + this.totalTroopsOf(id), 0);
             const supply = towns.reduce((total, id) => total + this.supplyOf(id), 0);
             return {
                 name: this.scenario.towns[tied[Math.abs(hash) % tied.length]].label,
                 towns,
                 troops,
-                supplyUsed: troops * this.scenario.supplyPerTroop,
+                // Full rules only: Shock Troops cost more than their head
+                // count, so this is the real cost, not troops * supplyPerTroop.
+                supplyUsed: towns.reduce((total, id) => total + this.supplyCostOf(id), 0),
                 supplyAvailable: supply,
                 supplyTowns: towns.filter(id => this.supplyOf(id) > 0).length,
                 starving: towns.reduce((total, id) => total + (this.towns[id].starving ?? 0), 0),
@@ -1144,6 +1197,13 @@ class EmpireTurn {
         this.bga = bga;
         /** Town id => troops being built there this turn. */
         this.produce = {};
+        /**
+         * Full rules only (option 105, issue #6): the build popup's other two
+         * buttons. Share `produce`'s town-id keys and the same capacity, but
+         * land in their own columns on the board.
+         */
+        this.produceCi = {};
+        this.produceShock = {};
         this.moves = [];
         this.source = null;
         this.step = 'build';
@@ -1151,6 +1211,8 @@ class EmpireTurn {
         this.disband = {};
         /** Standing offer to end the game, sent with the turn. */
         this.offerEnd = false;
+        /** Rebuilt on every open — see BoardView.showPile for why a kept instance fails. */
+        this.buildDialog = null;
     }
     onEnteringState(args, isCurrentPlayerActive) {
         // Defensive: a throw in here takes the whole handler with it, and the
@@ -1160,6 +1222,7 @@ class EmpireTurn {
             networks: args?.networks ?? [],
             offeredEnd: args?.offeredEnd ?? false,
             opponentOfferedEnd: args?.opponentOfferedEnd ?? false,
+            fullRules: args?.fullRules ?? false,
         };
         this.reset();
         if (!isCurrentPlayerActive) {
@@ -1191,6 +1254,8 @@ class EmpireTurn {
     }
     reset() {
         this.produce = {};
+        this.produceCi = {};
+        this.produceShock = {};
         this.moves = [];
         this.disband = {};
         this.source = null;
@@ -1202,6 +1267,10 @@ class EmpireTurn {
     buildable() {
         return Object.keys(this.args.production).filter(id => this.args.production[id] > 0);
     }
+    /** Every type staged at this town this turn, combined — one capacity shared by all three. */
+    stagedAt(townId) {
+        return (this.produce[townId] ?? 0) + (this.produceCi[townId] ?? 0) + (this.produceShock[townId] ?? 0);
+    }
     /**
      * How many more troops this town may build, given what is already staged.
      *
@@ -1209,10 +1278,24 @@ class EmpireTurn {
      * ceiling caps what it can keep, not what it can raise, and building past
      * it is legal — the panel warns instead, because attrition gives a turn of
      * grace and the troops may well be marched out to supply before it falls.
+     *
+     * Full rules (option 105, issue #6): capacity is shared across all three
+     * types, so a town that can build 2 may build one of each rather than
+     * two of the base unit.
      */
     buildRoom(townId) {
         const offered = this.args.production[townId] ?? 0;
-        return Math.max(0, offered - (this.produce[townId] ?? 0));
+        return Math.max(0, offered - this.stagedAt(townId));
+    }
+    /** Everything staged to build here this turn, of any type, for the purple pulse. */
+    combinedProduce() {
+        const combined = { ...this.produce };
+        [this.produceCi, this.produceShock].forEach(staged => {
+            Object.entries(staged).forEach(([townId, count]) => {
+                combined[townId] = (combined[townId] ?? 0) + count;
+            });
+        });
+        return combined;
     }
     // -- staging ------------------------------------------------------------
     onTownClick(townId) {
@@ -1222,10 +1305,19 @@ class EmpireTurn {
             return;
         }
         if (this.step === 'build') {
-            // Click again to build another, while supply and the town allow it.
-            if (this.buildRoom(townId) > 0) {
-                this.produce[townId] = (this.produce[townId] ?? 0) + 1;
+            if (this.buildRoom(townId) <= 0) {
+                this.refresh();
+                return;
             }
+            // Full rules (option 105, issue #6): which of the three types
+            // goes up is a real choice, so it asks rather than assuming the
+            // base unit. The popup's own buttons call refresh() when one is
+            // chosen — off, a click still just builds the base unit.
+            if (this.args.fullRules) {
+                this.showBuildChoice(townId);
+                return;
+            }
+            this.produce[townId] = (this.produce[townId] ?? 0) + 1;
             this.refresh();
             return;
         }
@@ -1256,6 +1348,62 @@ class EmpireTurn {
         else {
             this.moves.push({ from, to, count: 1 });
         }
+    }
+    // -- the build popup (full rules, option 105, issue #6) -----------------
+    /**
+     * Three buttons: the base unit, the Counterinsurgency Unit, and Shock
+     * Troops. A BGA popin's close button destroys its DOM, so this is
+     * rebuilt on every open rather than kept — see BoardView.showPile.
+     */
+    showBuildChoice(townId) {
+        const scenario = this.bga.gameui.gamedatas.scenario;
+        this.buildDialog?.destroy();
+        this.buildDialog = new ebg.popindialog();
+        this.buildDialog.create('iaw-build-choice-dialog');
+        this.buildDialog.setMaxWidth(440);
+        this.buildDialog.setTitle(_('What to build in') + ' ' + this.townLabel(townId));
+        this.buildDialog.setContent(this.buildChoiceHtml(scenario));
+        this.buildDialog.show();
+        const choose = (apply) => {
+            apply();
+            this.buildDialog?.destroy();
+            this.buildDialog = null;
+            this.refresh();
+        };
+        document.getElementById('iaw-build-choice-base')?.addEventListener('click', () => choose(() => {
+            this.produce[townId] = (this.produce[townId] ?? 0) + 1;
+        }));
+        document.getElementById('iaw-build-choice-ci')?.addEventListener('click', () => choose(() => {
+            this.produceCi[townId] = (this.produceCi[townId] ?? 0) + 1;
+        }));
+        document.getElementById('iaw-build-choice-shock')?.addEventListener('click', () => choose(() => {
+            this.produceShock[townId] = (this.produceShock[townId] ?? 0) + 1;
+        }));
+    }
+    buildChoiceHtml(scenario) {
+        const base = scenario.unit;
+        const ci = scenario.fullRulesUnits.counterinsurgency;
+        const shock = scenario.fullRulesUnits.shock;
+        const button = (id, label, detail) => `
+            <button type="button" id="iaw-build-choice-${id}" class="bgabutton bgabutton_blue iaw-build-choice-button">
+                <b>${label}</b><br><span class="iaw-build-choice-detail">${detail}</span>
+            </button>`;
+        const basePresence = _('${n} presence').replace('${n}', String(base.presence));
+        const basePeek = base.peek > 0
+            ? _(', reads ${n} card(s)').replace('${n}', String(base.peek))
+            : _(', reads nothing');
+        const parts = [button('base', base.label, basePresence + basePeek)];
+        if (ci) {
+            parts.push(button('ci', ci.label, _('No presence — reads ${own} here and ${neighbor} in each neighbouring location')
+                .replace('${own}', String(ci.peek))
+                .replace('${neighbor}', String(ci.reveal_neighbors ?? 0))));
+        }
+        if (shock) {
+            parts.push(button('shock', shock.label, _('${n} presence — costs ${cost} supply')
+                .replace('${n}', String(shock.presence))
+                .replace('${cost}', String(shock.supply_cost ?? scenario.supplyPerTroop))));
+        }
+        return `<div class="iaw-build-choice">${parts.join('')}</div>`;
     }
     /** Towns troops may march out of. */
     marchableFrom() {
@@ -1379,7 +1527,7 @@ class EmpireTurn {
             }
         });
         this.game.board.setTroopDelta(delta);
-        this.game.board.setBuildDelta({ ...this.produce });
+        this.game.board.setBuildDelta(this.combinedProduce());
         this.game.board.setMoveArrows(this.moves);
         this.game.board.setLossDelta(this.step === 'starve' ? { ...this.disband } : {});
         this.game.board.setStarveChoices(this.step === 'starve' ? this.lossChoices() : []);
@@ -1405,7 +1553,9 @@ class EmpireTurn {
             };
         }
         if (this.step === 'build') {
-            return { text: _('${you} may build: click a highlighted town, again for another troop') };
+            return { text: this.args.fullRules
+                    ? _('${you} may build: click a highlighted town to choose what to raise there')
+                    : _('${you} may build: click a highlighted town, again for another troop') };
         }
         if (this.source === null) {
             return { text: _('${you} may select a town to move troops from') };
@@ -1435,10 +1585,16 @@ class EmpireTurn {
     }
     stagingHtml() {
         const lines = [];
-        const built = Object.entries(this.produce).filter(([, count]) => count > 0);
-        lines.push(built.length
-            ? built.map(([townId, count]) => `<div>${_('Building')} ${count} ${_('at')} <b>${this.townLabel(townId)}</b></div>`).join('')
-            : `<div>${_('Building nothing')}</div>`);
+        const scenario = this.bga.gameui.gamedatas.scenario;
+        const builtLines = (produce, label) => Object.entries(produce)
+            .filter(([, count]) => count > 0)
+            .map(([townId, count]) => `<div>${_('Building')} ${count} ${label} ${_('at')} <b>${this.townLabel(townId)}</b></div>`);
+        const built = [
+            ...builtLines(this.produce, scenario.unit.label),
+            ...builtLines(this.produceCi, scenario.fullRulesUnits.counterinsurgency?.label ?? _('Counterinsurgency Unit')),
+            ...builtLines(this.produceShock, scenario.fullRulesUnits.shock?.label ?? _('Shock Troops')),
+        ];
+        lines.push(built.length ? built.join('') : `<div>${_('Building nothing')}</div>`);
         const network = this.game.board.networkOf(this.buildable()[0] ?? '');
         if (network) {
             lines.push(`<div class="iaw-hint">${_('Supply here')}: ${network.troops} / ${network.ceiling}</div>`);
@@ -1567,6 +1723,10 @@ class EmpireTurn {
             // Every troop a starving army loses, chosen in the Starve step. The
             // server refuses a turn whose choice is not the whole shortfall.
             disband: JSON.stringify(this.step === 'starve' ? this.disband : {}),
+            // Full rules only (option 105, issue #6): empty off the table or
+            // when nothing of that type was chosen, same as `produce`.
+            produceCi: JSON.stringify(this.produceCi),
+            produceShock: JSON.stringify(this.produceShock),
         });
     }
 }
@@ -2858,6 +3018,12 @@ class Game {
             this.board.getTown(townId).troops = troops;
             this.board.updateTown(townId);
         });
+        Object.entries(args.troopsCi ?? {}).forEach(([townId, troops]) => {
+            this.board.getTown(townId).troopsCi = troops;
+        });
+        Object.entries(args.troopsShock ?? {}).forEach(([townId, troops]) => {
+            this.board.getTown(townId).troopsShock = troops;
+        });
         this.recordLastTurn('empire', {
             side: 'empire',
             moves: args.moves ?? [],
@@ -2946,6 +3112,13 @@ class Game {
         // a town it wins, so zeroing troops here made them vanish until the
         // next turn's notification put them back.
         town.troops -= args.troopsLost;
+        // Full rules only (option 105, issue #6): a loss clears all three
+        // troop columns outright, not just the base unit — Board::markResolved
+        // mirrors this with `troops_ci = 0, troops_shock = 0` in the same query.
+        if (args.winner !== 'empire') {
+            town.troopsCi = 0;
+            town.troopsShock = 0;
+        }
         town.pile = [];
         town.pileSize = 0;
         // Captured cards are taken off the board; cards the Insurgency held
@@ -2996,6 +3169,12 @@ class Game {
         Object.entries(args.troops ?? {}).forEach(([townId, troops]) => {
             this.board.getTown(townId).troops = troops;
             this.board.updateTown(townId);
+        });
+        Object.entries(args.troopsCi ?? {}).forEach(([townId, troops]) => {
+            this.board.getTown(townId).troopsCi = troops;
+        });
+        Object.entries(args.troopsShock ?? {}).forEach(([townId, troops]) => {
+            this.board.getTown(townId).troopsShock = troops;
         });
     }
     /**

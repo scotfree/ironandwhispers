@@ -112,8 +112,8 @@ function test_glob2_never_leaves_a_network_it_cannot_feed(): void
     }
     foreach (\Bga\Games\IronAndWhisper\Rules::components($towns) as $component) {
         assertTrue(
-            \Bga\Games\IronAndWhisper\Rules::troopsIn($towns, $component)
-                <= \Bga\Games\IronAndWhisper\Rules::ceiling($towns, $component, $scenario->supplyPerTroop),
+            \Bga\Games\IronAndWhisper\Rules::troopsIn($towns, $component, $scenario->supplyPerTroop)
+                <= \Bga\Games\IronAndWhisper\Rules::ceiling($towns, $component),
             'left ' . implode(',', $component) . ' over its ceiling',
         );
     }

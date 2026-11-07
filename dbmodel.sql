@@ -26,7 +26,11 @@
 -- One row per town on the map, created at setup from the map JSON.
 --
 -- troops is Empire strength-in-place. Resolution spends it (Decision 3), so a
--- resolved town always ends with 0. The three resolved_ columns record the
+-- resolved town always ends with 0. troops_ci and troops_shock are the two
+-- Full Rules unit types (game option 105): a Counterinsurgency Unit and a
+-- Shock Troop never march (Rules.php/engine.py), so they stay wherever they
+-- were built until the town resolves or they starve, and resolution clears
+-- all three columns together. The three resolved_ columns record the
 -- fight after the fact so the board stays a readable history. winner holds
 -- empire, insurgency, or NULL while the town is still open.
 --
@@ -37,6 +41,8 @@
 CREATE TABLE IF NOT EXISTS `iaw_town` (
   `town_id` VARCHAR(32) NOT NULL,
   `troops` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `troops_ci` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `troops_shock` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   `starving` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
   `resolved` TINYINT UNSIGNED NOT NULL DEFAULT 0,
   `winner` VARCHAR(16) NULL DEFAULT NULL,
